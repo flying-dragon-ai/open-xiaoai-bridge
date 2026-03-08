@@ -108,8 +108,11 @@ APP_CONFIG = {
     },
     "openclaw": {
         "url": "ws://localhost:18789",
-        "token": "",            # OpenClaw 认证令牌
-        "session_key": "main",  # OpenClaw session 标识
+        "token": "",                  # OpenClaw 认证令牌
+        "session_key": "main",        # OpenClaw session 标识
+        "tts_enabled": False,         # 启用 Doubao TTS 播放 OpenClaw 回复
+        "blocking_playback": True,    # TTS 播放是否阻塞等待完成
+        # "tts_speaker": "...",       # 可选：自定义音色
     },
     "tts": {
         "doubao": {
@@ -163,6 +166,7 @@ MainApp.instance(enable_xiaozhi=True)
 ```python
 # 环境变量: OPENCLAW_ENABLED=1
 # 用户说"让龙虾 xxx" -> 转发到 OpenClaw -> 小爱播放结果
+# 如果 tts_enabled=True，OpenClaw 的回复会自动通过 Doubao TTS 播放
 await app.send_to_openclaw("用户指令")
 ```
 

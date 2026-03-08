@@ -62,6 +62,7 @@ flowchart TB
     subgraph ExternalServices["☁️ 外部服务"]
         XiaozhiServer["小智 AI 服务器<br/>api.tenclass.net"]
         OpenclawGW["OpenClaw Gateway<br/>ws://localhost:18789"]
+        DoubaoTTS["豆包 TTS<br/>volcengine.com"]
     end
 
     subgraph APIClients["🌐 API 客户端"]
@@ -92,6 +93,7 @@ flowchart TB
     %% ===== OpenClaw 连接 =====
     MainApp -.->|"可选"| OpenclawMgr
     OpenclawMgr <-->|"WebSocket"| OpenclawGW
+    OpenclawMgr -.->|"TTS (optional)"| DoubaoTTS
 
     %% ===== API Server =====
     MainApp -.->|"可选"| APIServer
@@ -120,7 +122,7 @@ flowchart TB
     class VAD,KWS,Codec audio
     class XiaoaiPy,Xiaozhi,OpenclawMgr connector
     class APIServer,Config api
-    class XiaozhiServer,OpenclawGW,Curl external
+    class XiaozhiServer,OpenclawGW,DoubaoTTS,Curl external
 ```
 
 ### 工作流程说明
@@ -131,10 +133,14 @@ flowchart TB
    before_wakeup()回调 → MainApp → XiaoZhi → 小智 AI 服务器
    ```
 
-2. **小爱指令 → OpenClaw**
+2. **小爱指令 → OpenClaw (TTS 播放)**
    ```
    小爱语音 → "让龙虾 xxx" → XiaoAI → before_wakeup() →
    send_to_openclaw() → OpenClawManager → OpenClaw Gateway → AI Agent
+   ↓
+   Doubao TTS 合成 ← 获取回复文本 ← OpenClawManager
+   ↓
+   SpeakerManager → 小爱音箱播放
    ```
 
 3. **远程控制（HTTP API）**
