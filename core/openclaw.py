@@ -12,6 +12,7 @@ Configuration (priority: env vars > config file > defaults):
                 "tts_enabled": False,  # Enable Doubao TTS to play OpenClaw responses
                 "blocking_playback": False,  # Non-blocking by default
                 "ack_timeout": 30,  # Seconds to wait for accepted ack
+                "response_timeout": 120,  # Seconds to wait for agent response
             }
         }
 
@@ -76,7 +77,7 @@ class OpenClawManager:
     # Response tracking for TTS
     _response_events: dict[str, asyncio.Future] = {}
     _response_texts: dict[str, str] = {}
-    _response_timeout = 120  # seconds to wait for agent response
+    _response_timeout = 120  # seconds to wait for agent response (configurable)
     _ack_timeout = 60  # seconds to wait for request accepted response
 
     @classmethod
@@ -106,6 +107,7 @@ class OpenClawManager:
         cfg_blocking_playback = config.get("blocking_playback", False)
         cfg_tts_speaker = config.get("tts_speaker", None)
         cfg_ack_timeout = config.get("ack_timeout", 30)
+        cfg_response_timeout = config.get("response_timeout", 120)
 
         # Enable/disable: parameter > environment variable > default (False)
         if enabled is not None:
@@ -122,6 +124,7 @@ class OpenClawManager:
         cls._blocking_playback = cfg_blocking_playback
         cls._tts_speaker = cfg_tts_speaker
         cls._ack_timeout = cfg_ack_timeout
+        cls._response_timeout = cfg_response_timeout
 
         cls._url = get_env("OPENCLAW_URL", cfg_url)
         cls._token = get_env("OPENCLAW_TOKEN", cfg_token)
@@ -269,7 +272,6 @@ class OpenClawManager:
             request_params = {
                 "message": text,
                 "sessionKey": cls._session_key,
-                "thinking": "low",
                 "deliver": False,
                 "idempotencyKey": idem,
             }

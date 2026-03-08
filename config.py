@@ -113,5 +113,6 @@ APP_CONFIG = {
         "token": "",  # OpenClaw 认证令牌
         "session_key": "main", # 会话标识
         "tts_enabled": True,  # 是否启用 TTS 播放
+        "response_timeout": 120,  # 等待 OpenClaw agent 响应的超时时间（秒）
     },
 }
