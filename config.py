@@ -98,6 +98,7 @@ APP_CONFIG = {
             "app_id": "xxxxx",           # 你的 App ID
             "access_key": "xxxxxx",       # 你的 Access Key
             "default_speaker": "zh_female_xiaohe_uranus_bigtts",  # 音色 https://www.volcengine.com/docs/6561/1257544?lang=zh
+            "audio_format": "ogg_opus",   # 音频格式: ogg_opus, mp3, pcm (默认 ogg_opus，数据量更小下载更快)
         }
     },
     # OpenClaw Configuration

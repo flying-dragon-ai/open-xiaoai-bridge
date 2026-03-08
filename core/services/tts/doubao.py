@@ -450,6 +450,7 @@ class DoubaoTTS:
         resource_id: str = None,
         speaker: str = "zh_female_cancan_mars_bigtts",
         api_url: str = DEFAULT_URL,
+        audio_format: str = None,
     ):
         self.app_id = app_id
         self.access_key = access_key
@@ -457,6 +458,14 @@ class DoubaoTTS:
         self.api_url = api_url
         # Auto-detect resource_id based on speaker if not provided
         self.resource_id = resource_id or self._detect_resource_id(speaker)
+        # Get audio format from config or use default
+        if audio_format is None:
+            try:
+                from config import APP_CONFIG
+                audio_format = APP_CONFIG.get("tts", {}).get("doubao", {}).get("audio_format", "ogg_opus")
+            except Exception:
+                audio_format = "ogg_opus"
+        self.audio_format = audio_format
 
     @classmethod
     def _detect_resource_id(cls, speaker: str) -> str:
@@ -523,7 +532,7 @@ class DoubaoTTS:
     def synthesize(
         self,
         text: str,
-        format: str = "mp3",
+        format: str = None,
         sample_rate: int = 24000,
         speed: float = 1.0,
         context_texts: list = None,
@@ -534,7 +543,7 @@ class DoubaoTTS:
 
         Args:
             text: 要合成的文本
-            format: 音频格式 (mp3, wav, opus)
+            format: 音频格式 (mp3, wav, opus)，默认使用实例的 audio_format
             sample_rate: 采样率
             speed: 语速 (0.8-2.0)
             emotion: 情感参数 (如: happy, sad, angry, excited 等)
@@ -542,6 +551,8 @@ class DoubaoTTS:
         Returns:
             PCM 音频数据 (bytes) 或 None (失败)
         """
+        if format is None:
+            format = self.audio_format
         headers = self._get_headers()
         payload = self._build_payload(text, format, sample_rate, speed, context_texts=context_texts, emotion=emotion)
 
@@ -600,7 +611,7 @@ class DoubaoTTS:
     def synthesize_stream(
         self,
         text: str,
-        format: str = "mp3",
+        format: str = None,
         sample_rate: int = 24000,
         speed: float = 1.0,
         context_texts: list = None,
@@ -611,6 +622,8 @@ class DoubaoTTS:
         Yields:
             PCM 音频数据块
         """
+        if format is None:
+            format = self.audio_format
         headers = self._get_headers()
         payload = self._build_payload(text, format, sample_rate, speed, context_texts=context_texts)
 
