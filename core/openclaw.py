@@ -607,7 +607,7 @@ class OpenClawManager:
                 if run_id and text:
                     logger.info(f"[OpenClaw] ✅ Text event for {run_id}: {text[:100]}...")
                     cls._response_texts[run_id] = text
-                    logger.info(f"[OpenClaw] Setting event for runId={run_id}")
+                    logger.debug(f"[OpenClaw] Setting event for runId={run_id}")
                     cls._signal_response_ready(run_id)
 
             elif event_name == "agent":
@@ -637,7 +637,7 @@ class OpenClawManager:
                         response_text = cls._response_texts.get(run_id, "")
                         if run_id and response_text:
                             logger.info(f"[OpenClaw] ✅ Agent completed for {run_id}: {response_text[:100]}...")
-                        logger.info(f"[OpenClaw] Setting event for runId={run_id}")
+                        logger.debug(f"[OpenClaw] Setting event for runId={run_id}")
                         cls._signal_response_ready(run_id)
 
         except Exception as e:
@@ -736,9 +736,9 @@ class OpenClawManager:
             blocking = cls._blocking_playback
             await speaker.play(buffer=audio_data, blocking=blocking)
             if blocking:
-                logger.info("[OpenClaw] Response playback completed")
+                logger.debug("[OpenClaw] Response playback completed")
             else:
-                logger.info("[OpenClaw] Response playback started (non-blocking)")
+                logger.debug("[OpenClaw] Response playback started (non-blocking)")
 
         except Exception as e:
             logger.error(f"[OpenClaw] Error playing response with TTS: {e}")
