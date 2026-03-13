@@ -1,4 +1,5 @@
 import asyncio
+import inspect
 import json
 
 import websockets
@@ -38,6 +39,16 @@ class WebsocketProtocol(Protocol):
                 self.connected = False
             except Exception:
                 pass
+
+    async def _invoke_callback(self, callback, *args):
+        """Run sync or async callbacks transparently."""
+        if not callback:
+            return None
+
+        result = callback(*args)
+        if inspect.isawaitable(result):
+            return await result
+        return result
 
     async def connect(self) -> bool:
         """连接到WebSocket服务器"""
@@ -112,7 +123,7 @@ class WebsocketProtocol(Protocol):
         except Exception:
             self.connected = False
             if self.on_audio_channel_closed:
-                await self.on_audio_channel_closed()
+                await self._invoke_callback(self.on_audio_channel_closed)
 
     async def send_audio(self, frames: list[bytes]):
         """发送音频数据"""
@@ -180,7 +191,7 @@ class WebsocketProtocol(Protocol):
 
             # 通知音频通道已打开
             if self.on_audio_channel_opened:
-                await self.on_audio_channel_opened()
+                await self._invoke_callback(self.on_audio_channel_opened)
 
         except Exception as e:
             if self.on_network_error:
@@ -194,7 +205,7 @@ class WebsocketProtocol(Protocol):
                 self.websocket = None
                 self.connected = False
                 if self.on_audio_channel_closed:
-                    await self.on_audio_channel_closed()
+                    await self._invoke_callback(self.on_audio_channel_closed)
             except Exception:
                 pass
         logger.info(f"[xiaozhi-esp32-server] {self.WEBSOCKET_URL} 通道被关闭, 尝试重连...")

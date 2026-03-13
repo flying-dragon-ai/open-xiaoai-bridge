@@ -17,7 +17,7 @@ echo -e "${GREEN}  Open-XiaoAI Bridge 启动脚本${NC}"
 echo -e "${GREEN}========================================${NC}"
 echo ""
 
-XIAOZHI_ENABLED="${XIAOZHI_ENABLE,,}"
+XIAOZHI_ENABLED=$(printf '%s' "${XIAOZHI_ENABLE:-}" | tr '[:upper:]' '[:lower:]')
 
 # 1. 检查 uv
 if ! command -v uv &> /dev/null; then
