@@ -380,12 +380,12 @@ class APIServer:
 
         Request body:
             {
-                "silent": true   # optional, default true (silent wakeup)
+                "silent": false   # optional, default false (audible wakeup)
             }
         """
         try:
             data = await request.json() if request.can_read_body else {}
-            silent = data.get("silent", True)
+            silent = data.get("silent", False)
 
             speaker = get_speaker()
             if not speaker:
@@ -419,6 +419,7 @@ class APIServer:
                 )
 
             # 打断原来的小爱同学
+            await speaker.run_shell("mphelper pause")
             await speaker.abort_xiaoai()
             # 停止连续对话
             if xiaoai:

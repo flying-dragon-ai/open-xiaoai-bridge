@@ -15,10 +15,8 @@ def main():
     parser.add_argument("command", 
                         choices=["health", "status", "wakeup", "interrupt"],
                         help="控制命令")
-    parser.add_argument("--silent", action="store_true", default=True,
-                        help="静默唤醒（不播放提示音，默认 True）")
-    parser.add_argument("--no-silent", action="store_true",
-                        help="非静默唤醒（播放提示音）")
+    parser.add_argument("--silent", action=argparse.BooleanOptionalAction, default=False,
+                        help="静默唤醒（不播放提示音）；默认有声")
     
     args = parser.parse_args()
     
@@ -54,7 +52,7 @@ def main():
                 print(f"⚠️ 获取状态失败: {result}")
         
         elif args.command == "wakeup":
-            silent = not args.no_silent if args.no_silent else args.silent
+            silent = args.silent
             result = wakeup(silent=silent)
             if result.get("success"):
                 mode = "静默" if silent else "有声"

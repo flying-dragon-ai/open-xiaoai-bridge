@@ -139,19 +139,19 @@ def main():
         cmd_args = ['wakeup']
         if args.silent:
             cmd_args.append('--silent')
-        sys.exit(run_script('control.py', cmd_args)[3])
-    
+        sys.exit(run_script('control.py', cmd_args, capture=False)[3])
+
     elif args.command == 'status':
-        sys.exit(run_script('control.py', ['status'])[3])
-    
+        sys.exit(run_script('control.py', ['status'], capture=False)[3])
+
     elif args.command == 'health':
-        sys.exit(run_script('control.py', ['health'])[3])
-    
+        sys.exit(run_script('control.py', ['health'], capture=False)[3])
+
     elif args.command == 'file':
-        sys.exit(run_script('play_file.py', [args.path])[3])
-    
+        sys.exit(run_script('play_file.py', [args.path], capture=False)[3])
+
     elif args.command == 'url':
-        sys.exit(run_script('play_url.py', [args.url])[3])
+        sys.exit(run_script('play_url.py', [args.url], capture=False)[3])
     
     elif args.command == 'voices':
         cmd_args = []

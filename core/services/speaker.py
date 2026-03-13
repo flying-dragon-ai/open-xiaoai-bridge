@@ -120,6 +120,7 @@ class SpeakerManager:
 
         注意：重启需要大约 1-2s 的时间，在此期间无法使用小爱音箱自带的 TTS 服务
         """
+        # Stop current audio playback first, then restart xiaoai voice service
         res = await self.run_shell("/etc/init.d/mico_aivs_lab restart >/dev/null 2>&1")
         return res.exit_code == 0
 
