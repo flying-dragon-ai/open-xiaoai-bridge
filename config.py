@@ -22,16 +22,10 @@ async def before_wakeup(speaker, text, source, xiaozhi, xiaoai, app):
         return True
 
     if source == "xiaoai":
-        if text == "召唤小智":
-            # 打断原来的小爱同学回复
-            await speaker.abort_xiaoai()
-            # 唤醒小智 AI
-            return True
-    if source == "xiaoai":
         if "小白" in text:
             # 打断原来的小爱同学回复
             await speaker.abort_xiaoai()
-            
+
             forwarded_text = text.split("小白", 1)[1].replace("让他", "", 1).strip()
 
             # 在消息末尾加入提示，引导 Agent 调用 xiaoai-tts skill 播报结果
@@ -43,7 +37,13 @@ async def before_wakeup(speaker, text, source, xiaozhi, xiaoai, app):
                 import time; time.sleep(2)
                 await speaker.play(text="小白未在线")
             return False
-            
+
+        if text == "召唤小智":
+            # 打断原来的小爱同学回复
+            await speaker.abort_xiaoai()
+            # 唤醒小智 AI
+            return True
+
 
 async def after_wakeup(speaker):
     """
