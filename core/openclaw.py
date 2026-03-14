@@ -9,7 +9,7 @@ Configuration:
                 "url": "ws://localhost:4399",
                 "token": "your_token",
                 "session_key": "main",
-                "identity_path": "/data/openclaw/device.json",
+                "identity_path": "~/.openclaw/identity/device.json",
                 "tts_enabled": False,  # Enable Doubao TTS to play OpenClaw responses
                 "blocking_playback": False,  # Non-blocking by default
                 "ack_timeout": 30,  # Seconds to wait for accepted ack
@@ -327,7 +327,7 @@ class OpenClawManager:
                 "maxProtocol": 3,
                 "client": client_meta,
                 "locale": "zh-CN",
-                "userAgent": "xiaoai-bridge/1.0.0",
+                "userAgent": "open-xiaoai-bridge/1.0.0",
                 "role": "operator",
                 "scopes": scopes,
                 "caps": [],
@@ -852,8 +852,8 @@ class OpenClawManager:
         """Synthesize text using Doubao TTS and play through speaker."""
         try:
             from config import APP_CONFIG
-            from core.services.tts.doubao import DoubaoTTS
             from core.ref import get_speaker
+            from core.services.tts.doubao import DoubaoTTS
 
             # Get TTS config
             tts_config = APP_CONFIG.get("tts", {}).get("doubao", {})

@@ -209,13 +209,13 @@ API_SERVER_ENABLE=1 XIAOZHI_ENABLE=1 OPENCLAW_ENABLED=1 uv run main.py
 
 ### 环境变量配置
 
-| 环境变量            | 说明                                  | 示例                                |
-| ------------------- | ------------------------------------- | ----------------------------------- |
-| `XIAOZHI_ENABLE`    | 连接小智 AI 服务                      | `XIAOZHI_ENABLE=1`                  |
-| `API_SERVER_ENABLE` | 开启 HTTP API 服务（端口 9092）       | `API_SERVER_ENABLE=1`               |
-| `API_SERVER_HOST`   | API Server 监听地址（默认 127.0.0.1） | `API_SERVER_HOST=0.0.0.0`           |
-| `API_SERVER_PORT`   | API Server 监听端口（默认 9092）      | `API_SERVER_PORT=9092`              |
-| `OPENCLAW_ENABLED`  | 启用 OpenClaw 集成                    | `OPENCLAW_ENABLED=1`                |
+| 环境变量            | 说明                                  | 示例                      |
+| ------------------- | ------------------------------------- | ------------------------- |
+| `XIAOZHI_ENABLE`    | 连接小智 AI 服务                      | `XIAOZHI_ENABLE=1`        |
+| `API_SERVER_ENABLE` | 开启 HTTP API 服务（端口 9092）       | `API_SERVER_ENABLE=1`     |
+| `API_SERVER_HOST`   | API Server 监听地址（默认 127.0.0.1） | `API_SERVER_HOST=0.0.0.0` |
+| `API_SERVER_PORT`   | API Server 监听端口（默认 9092）      | `API_SERVER_PORT=9092`    |
+| `OPENCLAW_ENABLED`  | 启用 OpenClaw 集成                    | `OPENCLAW_ENABLED=1`      |
 
 ## API Server 集成
 
@@ -279,7 +279,7 @@ APP_CONFIG = {
         "url": "ws://127.0.0.1:18789",  # OpenClaw WebSocket 地址
         "token": "",  # 认证令牌（如果需要）
         "session_key": "main",  # 会话标识
-        "identity_path": "/data/openclaw/device.json",  # 设备身份文件路径（容器部署建议持久化）
+        "identity_path": "/app/openclaw/identity/device.json",  # 设备身份文件路径（容器部署建议持久化）
         "tts_enabled": False,  # 启用 Doubao TTS 播放 OpenClaw 回复
         "blocking_playback": False,  # TTS 播放是否阻塞等待完成 (默认 False)
         "ack_timeout": 30,  # 发送消息时等待 OpenClaw accepted 回执的超时时间（秒）
@@ -301,7 +301,7 @@ OPENCLAW_ENABLED=1 uv run main.py
 ```yaml
 # docker-compose.yml
 volumes:
-  - ./data/openclaw:/data/openclaw
+  ./openclaw:/app/openclaw
 ```
 
 2. 首次启动时，OpenClaw 会把这个客户端识别为一个待配对设备。请到 OpenClaw UI 中手动批准：
@@ -455,7 +455,7 @@ APP_CONFIG = {
         "url": "ws://127.0.0.1:18789",
         "token": "your_token",  # 如果 OpenClaw 需要认证
         "session_key": "main",
-        "identity_path": "/data/openclaw/device.json",
+        "identity_path": "~/.openclaw/identity/device.json",
     },
 }
 ```

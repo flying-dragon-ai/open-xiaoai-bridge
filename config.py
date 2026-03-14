@@ -104,7 +104,7 @@ APP_CONFIG = {
         "url": "ws://127.0.0.1:18789",  # OpenClaw WebSocket 地址
         "token": "your_openclaw_token",  # OpenClaw 认证令牌
         "session_key": "main:open-xiaoai-bridge", # 会话标识
-        "identity_path": "/data/openclaw/device.json",  # 设备身份文件路径；容器部署时建议挂载持久化目录
+        "identity_path": "/app/openclaw/identity/device.json",  # 设备身份文件路径；容器部署时建议挂载持久化目录
         # 推荐做法：将 tts_enabled 设为 False，在 OpenClaw 中注册 skills/xiaoai-tts skill，
         # 由 Agent 自主调用，可灵活控制音色、语速、情感等参数
         # 如果不想在 OpenClaw 中注册 skill，也可以将 tts_enabled 设为 True，
