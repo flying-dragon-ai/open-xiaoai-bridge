@@ -219,7 +219,7 @@ curl -X POST http://{host}:9092/api/play/url \
 | app_id | string | 否 | App ID（默认从 config.py 读取） |
 | access_key | string | 否 | Access Key（默认从 config.py 读取） |
 | resource_id | string | 否 | 资源 ID（自动根据音色检测） |
-| speaker | string | 否 | 音色 ID（默认 `zh_female_vv_uranus_bigtts`） |
+| speaker_id | string | 否 | 音色 ID（默认 `zh_female_vv_uranus_bigtts`） |
 | speed | float | 否 | 语速，0.8-2.0（默认 1.0） |
 | emotion | string | 否 | 情感参数（仅多情感音色支持） |
 | context_texts | array | 否 | 上下文指令（仅 2.0 音色支持） |
@@ -238,7 +238,7 @@ curl -X POST http://{host}:9092/api/tts/doubao \
   -H "Content-Type: application/json" \
   -d '{
     "text": "你怎么能这样！",
-    "speaker": "zh_male_lengkugege_emo_v2_mars_bigtts",
+    "speaker_id": "zh_male_lengkugege_emo_v2_mars_bigtts",
     "emotion": "angry"
   }'
 ```
@@ -249,7 +249,7 @@ curl -X POST http://{host}:9092/api/tts/doubao \
   -H "Content-Type: application/json" \
   -d '{
     "text": "这是一个很长的句子",
-    "speaker": "zh_female_vv_uranus_bigtts",
+    "speaker_id": "zh_female_vv_uranus_bigtts",
     "context_texts": ["你可以说慢一点吗？"]
   }'
 ```

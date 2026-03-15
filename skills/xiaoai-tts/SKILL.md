@@ -56,8 +56,29 @@ xiaoai-tts voices -v 1.0     # 仅 1.0 音色
 
 ## 常用音色推荐
 
+### 用户自定义声音复刻（`S_` 前缀）
+
+如果用户想使用自定义复刻音色，引导用户前往 [火山引擎声音复刻控制台](https://console.volcengine.com/speech/new/experience/clone) 上传声音训练专属音色，训练完成后在 [音色库](https://console.volcengine.com/speech/new/voices?projectName=default) 的「我的音色」中复制音色 ID（格式为 `S_xxxxxxxx`），填入 `-s` 参数即可使用。
+
+```bash
+xiaoai-tts tts "你好，我是你的专属语音助手" -s S_xxxxxxxx
+```
+
+> 注意：声音复刻音色 ID 通常以 `S_` 开头，传入时无需通过 `xiaoai-tts voices` 列表验证，直接使用即可。
+
+**工作流：**
+1. 用户想使用自定义复刻音色时，引导用户前往火山引擎完成声音训练并获取音色 ID
+2. 用户拿到音色 ID 后，引导用户将音色昵称和 ID 填入下方表格
+3. 后续用户提到音色昵称时，直接从表格中查找对应 ID 使用
+
+### 用户已保存的自定义音色
+
+| 音色名称 | speaker_id | 特点 |
+|---------|------------|------|
+| （暂无，引导用户添加） | - | - |
+
 ### 2.0 音色（推荐）
-| 音色名称 | voice_type | 特点 |
+| 音色名称 | speaker_id | 特点 |
 |---------|------------|------|
 | Vivi 2.0 | zh_female_vv_uranus_bigtts | 通用场景，情感变化 |
 | 小何 2.0 | zh_female_xiaohe_uranus_bigtts | 通用场景 |
@@ -65,7 +86,7 @@ xiaoai-tts voices -v 1.0     # 仅 1.0 音色
 | 小天 2.0 | zh_male_taocheng_uranus_bigtts | 通用场景 |
 
 ### 1.0 音色（多情感）
-| 音色名称 | voice_type | 特点 |
+| 音色名称 | speaker_id | 特点 |
 |---------|------------|------|
 | 冷酷哥哥 | zh_male_lengkugege_emo_v2_mars_bigtts | 支持 emotion 参数 |
 | 高冷御姐 | zh_female_gaolengyujie_emo_v2_mars_bigtts | 支持 emotion 参数 |

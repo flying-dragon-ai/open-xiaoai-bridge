@@ -255,7 +255,7 @@ curl -X POST http://localhost:9092/api/play/file \
 # 豆包 TTS
 curl -X POST http://localhost:9092/api/tts/doubao \
   -H "Content-Type: application/json" \
-  -d '{"text": "你好，这是豆包语音合成", "speaker": "zh_female_cancan_mars_bigtts"}'
+  -d '{"text": "你好，这是豆包语音合成", "speaker_id": "zh_female_cancan_mars_bigtts"}'
 
 # 打断当前播放
 curl -X POST http://localhost:9092/api/interrupt
@@ -534,6 +534,32 @@ APP_CONFIG = {
 ```
 
 可用音色列表请参考 `/api/tts/doubao_voices` 接口或 [Doubao 官方文档](https://www.volcengine.com/docs/6561/1257544)。
+
+#### Q：如何使用自己的声音（声音复刻）？
+
+1. 打开 [火山引擎声音复刻控制台](https://console.volcengine.com/speech/new/experience/clone)，选择项目后上传 10-30 秒的音频（支持 wav/mp3/m4a，建议安静环境录制）
+2. 训练完成后，到 [音色库 → 我的音色](https://console.volcengine.com/speech/new/voices?projectName=default) 找到对应音色，点击右侧菜单选择「复制音色ID」，格式为 `S_xxxxxxxx`
+3. 将音色 ID 填入配置即可：
+
+```python
+APP_CONFIG = {
+    "tts": {
+        "doubao": {
+            "app_id": "your_app_id",
+            "access_key": "your_access_key",
+            "default_speaker": "S_xxxxxxxx",  # 你的自定义复刻音色 ID
+        }
+    },
+}
+```
+
+或者在调用 `xiaoai-tts` skill 时通过 `-s` 参数指定：
+
+```bash
+xiaoai-tts tts "你好" -s S_xxxxxxxx
+```
+
+> 说明：`S_` 前缀的音色是通过声音复刻 2.0 模型训练的用户自定义音色，系统会自动匹配正确的 resource_id，无需额外配置。
 
 #### Q：TTS 播放是阻塞还是非阻塞的？
 

@@ -460,8 +460,8 @@ class APIServer:
                 "text": "你好",                    # required
                 "app_id": "your_app_id",           # optional (uses config if not provided)
                 "access_key": "your_access_key",   # optional (uses config if not provided)
-                "resource_id": "your_resource_id", # optional (auto-detected based on speaker)
-                "speaker": "zh_female_cancan_mars_bigtts",  # optional, default voice
+                "resource_id": "your_resource_id", # optional (auto-detected based on speaker_id)
+                "speaker_id": "zh_female_cancan_mars_bigtts",  # optional, default voice
                 "speed": 1.0,                       # optional, 0.8-2.0
                 "blocking": true,                   # optional, default false
                 "emotion": "happy",                 # optional, emotion for multi-emotion speakers
@@ -497,7 +497,7 @@ class APIServer:
                     status=400
                 )
 
-            speaker_id = data.get("speaker") or tts_config.get("default_speaker") or "zh_female_shuangkuaisisi_moon_bigtts"
+            speaker_id = data.get("speaker_id") or data.get("speaker") or tts_config.get("default_speaker") or "zh_female_shuangkuaisisi_moon_bigtts"
             speed = float(data.get("speed", 1.0))
             blocking = data.get("blocking", False)
             context_texts = data.get("context_texts")  # Only supported for 2.0 speakers
@@ -573,7 +573,7 @@ class APIServer:
                 return web.json_response({
                     "success": success,
                     "message": f"TTS played: {text[:50]}..." if len(text) > 50 else f"TTS played: {text}",
-                    "speaker": speaker_id,
+                    "speaker_id": speaker_id,
                     "audio_size": len(audio_data)
                 })
             else:
@@ -581,7 +581,7 @@ class APIServer:
                 return web.json_response({
                     "success": True,
                     "message": f"TTS playing in background: {text[:50]}..." if len(text) > 50 else f"TTS playing: {text}",
-                    "speaker": speaker_id,
+                    "speaker_id": speaker_id,
                     "audio_size": len(audio_data)
                 })
 

@@ -33,7 +33,7 @@ def tts_doubao(text, speaker=None, speed=1.0, emotion=None,
     """
     data = {
         "text": text,
-        "speaker": speaker or DEFAULT_SPEAKER,
+        "speaker_id": speaker or DEFAULT_SPEAKER,
         "speed": speed,
         "blocking": blocking
     }

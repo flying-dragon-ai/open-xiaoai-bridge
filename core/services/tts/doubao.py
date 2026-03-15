@@ -473,6 +473,15 @@ class DoubaoTTS:
         """根据音色自动检测 resource_id"""
         if speaker in cls.VOICES_2_0:
             return "seed-tts-2.0"
+        # User voice cloning speakers (S_ prefix) → seed-icl-2.0
+        if speaker.startswith("S_"):
+            return "seed-icl-2.0"
+        # Official ICL 1.0 speakers (ICL_ / icl_ prefix) → seed-icl-1.0
+        if speaker.startswith("ICL_") or speaker.startswith("icl_"):
+            return "seed-icl-1.0"
+        # DiT_ / saturn_ prefix → seed-icl-2.0
+        if speaker.startswith("DiT_") or speaker.startswith("saturn_"):
+            return "seed-icl-2.0"
         return "seed-tts-1.0"
 
     def _get_headers(self) -> dict:
@@ -524,6 +533,10 @@ class DoubaoTTS:
         # Add emotion parameter if provided (only supported by certain speakers)
         if emotion:
             req_params["audio_params"]["emotion"] = emotion
+
+        # Use seed-tts-1.1 for 1.0 speakers: better quality and lower latency
+        if self.resource_id == "seed-tts-1.0":
+            req_params["model"] = "seed-tts-1.1"
 
         return {
             "user": {"uid": "xiaozhi_user"},
