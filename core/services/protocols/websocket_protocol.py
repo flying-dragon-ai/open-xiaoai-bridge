@@ -116,6 +116,12 @@ class WebsocketProtocol(Protocol):
                 if isinstance(message, str):
                     try:
                         data = json.loads(message)
+                        session_id = data.get("session_id")
+                        if session_id and session_id != self.session_id:
+                            self.session_id = session_id
+                            logger.info(
+                                f"[xiaozhi-esp32-server] Updated session_id: {session_id}"
+                            )
                         msg_type = data.get("type")
                         if msg_type == "hello":
                             await self._handle_server_hello(data)
@@ -126,7 +132,10 @@ class WebsocketProtocol(Protocol):
                         pass
                 elif self.on_incoming_audio:
                     self.on_incoming_audio(message)
-        except Exception:
+        except Exception as exc:
+            logger.error(
+                f"[xiaozhi-esp32-server] Message handler stopped: {type(exc).__name__}: {exc}"
+            )
             self.connected = False
             if self.on_audio_channel_closed:
                 await self._invoke_callback(self.on_audio_channel_closed)
@@ -139,8 +148,10 @@ class WebsocketProtocol(Protocol):
         try:
             for frame in frames:
                 await self.websocket.send(frame)
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.error(
+                f"[xiaozhi-esp32-server] Failed to send audio: {type(exc).__name__}: {exc}"
+            )
 
     async def send_text(self, message: str):
         """发送文本消息"""
@@ -149,6 +160,7 @@ class WebsocketProtocol(Protocol):
                 await self.websocket.send(message)
             except Exception as e:
                 raise e
+
     def is_audio_channel_opened(self) -> bool:
         """检查音频通道是否打开"""
         return self.websocket is not None and self.connected
@@ -224,7 +236,10 @@ class WebsocketProtocol(Protocol):
                 try:
                     await self.websocket.ping()
                 except Exception:
-                    print("发送心跳失败")
+                    logger.error(
+                        "发送心跳失败，准备重连",
+                        module="xiaozhi-esp32-server",
+                    )
                     # 发送心跳失败，重新连接
                     await self.open_audio_channel()
             await asyncio.sleep(1)

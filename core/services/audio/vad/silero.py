@@ -2,6 +2,7 @@ import numpy as np
 import onnxruntime as ort
 
 from core.utils.file import get_model_file_path
+from core.utils.logger import logger
 
 
 class OnnxWrapper:
@@ -96,12 +97,14 @@ class _Silero:
             audio_float32 = audio_int16.astype(np.float32) / 32768.0
             return self.model(audio_float32, sample_rate).item()
         except Exception as e:
-            # 打印详细错误信息
             import traceback
-            print(f"[Silero VAD Error] {str(e)}")
-            print(f"[Silero VAD Error] frames length: {len(frames) if frames else 'None'}")
-            print(f"[Silero VAD Error] sample_rate: {sample_rate}")
-            traceback.print_exc()
+            logger.error(f"{str(e)}", module="SileroVAD")
+            logger.error(
+                f"frames length: {len(frames) if frames else 'None'}",
+                module="SileroVAD",
+            )
+            logger.error(f"sample_rate: {sample_rate}", module="SileroVAD")
+            logger.debug(traceback.format_exc(), module="SileroVAD")
             return None
 
 

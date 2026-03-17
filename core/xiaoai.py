@@ -1,14 +1,14 @@
 import asyncio
 import threading
-import time
 
 import numpy as np
 import open_xiaoai_server
 
-from core.event import EventManager
 from core.ref import get_speaker, set_xiaoai
 from core.services.audio.stream import GlobalStream
 from core.services.speaker import SpeakerManager
+from core.wakeup_session import EventManager
+from core.xiaoai_conversation import XiaoAIConversationController
 from core.utils.base import json_decode
 from core.utils.config import ConfigManager
 from core.utils.logger import logger
@@ -27,26 +27,14 @@ class XiaoAI:
     speaker = SpeakerManager()
     async_loop: asyncio.AbstractEventLoop = None
     config_manager = ConfigManager.instance()
-
-    continuous_conversation_mode = True
-    max_listening_retries = 2  # 最多连续重新唤醒次数
-    exit_command_keywords = ["停止", "退下", "退出", "下去吧"]
-    exit_prompt = "再见，主人"
-    continuous_conversation_keywords = ["开启连续对话"]
-
-    conversing = False # 是否在连续对话中
-    current_retries = 0  # 当前重新唤醒次数
+    conversation = XiaoAIConversationController()
+    _async_loop_ready = threading.Event()
 
     @classmethod
     def refresh_runtime_config(cls, *_args):
         """从配置中心同步运行时参数。"""
-        config = cls.config_manager.get_app_config("xiaoai", {})
-        cls.continuous_conversation_mode = config.get("continuous_conversation_mode", True)
-        cls.max_listening_retries = config.get("max_listening_retries", 2)
-        cls.exit_command_keywords = config.get("exit_command_keywords", ["停止", "退下", "退出", "下去吧"])
-        cls.exit_prompt = config.get("exit_prompt", "再见，主人")
-        cls.continuous_conversation_keywords = config.get(
-            "continuous_conversation_keywords", ["开启连续对话"]
+        cls.conversation.apply_runtime_config(
+            cls.config_manager.get_app_config("xiaoai", {})
         )
 
     @classmethod
@@ -71,6 +59,10 @@ class XiaoAI:
     @classmethod
     async def on_event(cls, event: str):
         event_json = json_decode(event) or {}
+        if not isinstance(event_json, dict):
+            logger.debug("[XiaoAI] 忽略非字典事件负载")
+            return
+
         event_data = event_json.get("data", {})
         event_type = event_json.get("event")
 
@@ -80,80 +72,88 @@ class XiaoAI:
         # 记录所有事件用于调试监听退出
         logger.debug(f"[XiaoAI] 📡 收到事件: {event_type} | 数据: {event_data}")
 
-        if event_type == "instruction" and event_data.get("NewLine"):
-            line = json_decode(event_data.get("NewLine"))
+        if event_type == "instruction":
+            if not isinstance(event_data, dict):
+                logger.debug(
+                    f"[XiaoAI] 忽略非字典 instruction 数据: {event_data}"
+                )
+                return
+
+            raw_line = event_data.get("NewLine")
+            if not raw_line:
+                return
+
+            line = json_decode(raw_line) if isinstance(raw_line, str) else raw_line
+            if not isinstance(line, dict):
+                logger.debug(f"[XiaoAI] 忽略无法解析的指令行: {raw_line}")
+                return
+
             if (
                 line
+                and isinstance(line.get("header"), dict)
                 and line.get("header", {}).get("namespace") == "SpeechRecognizer"
             ):
                 header_name = line.get("header", {}).get("name")
                 
                 if header_name == "RecognizeResult":
-                    text = line.get("payload", {}).get("results")[0].get("text")
-                    is_final = line.get("payload", {}).get("is_final")
-                    is_vad_begin = line.get("payload", {}).get("is_vad_begin")
+                    payload = line.get("payload", {})
+                    if not isinstance(payload, dict):
+                        logger.debug(
+                            f"[XiaoAI] 忽略非字典 RecognizeResult payload: {payload}"
+                        )
+                        return
+
+                    results = payload.get("results") or []
+                    first_result = results[0] if results else {}
+                    if isinstance(first_result, dict):
+                        text = first_result.get("text") or ""
+                    elif isinstance(first_result, str):
+                        text = first_result
+                    else:
+                        text = ""
+                    is_final = payload.get("is_final")
+                    is_vad_begin = payload.get("is_vad_begin")
                     
                     # 只有明确的 is_vad_begin=False 且没有文本时才触发唤醒
                     # 避免重复触发
                     if not text and is_vad_begin is False:
-                        logger.wakeup("小爱同学")
-                        # 开始新的对话，重置重试计数
-                        cls.current_retries = 0
+                        logger.wakeup("小爱同学", module="XiaoAI")
+                        cls.conversation.reset_retries()
                         EventManager.on_interrupt()
                     elif text and is_final:
                         logger.info(f"[XiaoAI] 🔥 收到指令: {text}")
-                        # 收到语音输入，重置重试计数
-                        cls.current_retries = 0                        
-                        if any(cmd in text for cmd in cls.exit_command_keywords):
-                            logger.info("[XiaoAI] 👋 收到退出指令，立即退出连续对话模式")
-                            cls.stop_conversation()
-                            speaker = get_speaker()
-                            await speaker.play(text=cls.exit_prompt)
-                        if any(keyword in text for keyword in cls.continuous_conversation_keywords):
-                            logger.info("[XiaoAI] 👋 收到开启连续对话指令，开启连续对话模式")
-                            cls.conversing = True
+                        cls.conversation.reset_retries()
+                        await cls.conversation.handle_text_command(
+                            text,
+                            get_speaker(),
+                        )
                         await EventManager.wakeup(text, "xiaoai")
                     elif is_final and not text:
-                        # 小爱监听超时退出：is_final=true and text=""
                         logger.debug("[XiaoAI] 🛑 小爱监听超时自动退出")
-                        
-                        if cls.continuous_conversation_mode and cls.conversing and cls.current_retries > 0:
-                            # 检查是否还能重新唤醒
-                            speaker = get_speaker()
-                            if cls.current_retries < cls.max_listening_retries:
-                                cls.current_retries += 1
-                                logger.info(f"[XiaoAI] 🔄 重新唤醒小爱继续监听 ({cls.current_retries}/{cls.max_listening_retries})")
-                                await speaker.wake_up(awake=True, silent=True)
-                            else:
-                                # 达到重试上限，退出对话模式
-                                logger.info(f"[XiaoAI] 💤 达到重试上限({cls.max_listening_retries}次)，退出连续对话模式")
-                                cls.conversing = False
-                                cls.current_retries = 0
-                                await speaker.play(text=cls.exit_prompt)
-            elif line and line.get("header", {}).get("namespace") == "AudioPlayer":
+                        await cls.conversation.handle_listening_timeout(
+                            get_speaker()
+                        )
+            elif (
+                line
+                and isinstance(line.get("header"), dict)
+                and line.get("header", {}).get("namespace") == "AudioPlayer"
+            ):
                 header_name = line.get("header", {}).get("name")
-                if header_name in {"Play", "PlayList", "PushAudio", "Template.PlayInfo"}:
-                    logger.info(
-                        f"[XiaoAI] 收到播放器指令 {header_name}，退出连续对话模式"
-                    )
-                    cls.stop_conversation()
-                else:
-                    logger.debug(
-                        f"[XiaoAI] 忽略 AudioPlayer 事件，避免误退出连续对话: {header_name}"
-                    )
+                cls.conversation.handle_audio_player_instruction(header_name)
         elif event_type == "playing":
+            if not isinstance(event_data, str):
+                logger.debug(
+                    f"[XiaoAI] 忽略非字符串 playing 数据: {event_data}"
+                )
+                return
+
             playing_status = event_data.lower()
             
             get_speaker().status = playing_status
-            
-            # 连续对话：TTS播放完毕后重新唤醒小爱
-            if cls.continuous_conversation_mode and playing_status == "idle" and cls.conversing:
-                speaker = get_speaker()
-                await speaker.wake_up(awake=True, silent=False)
-                # 首次进入连续对话模式
-                cls.current_retries = 1
-                logger.info(f"[XiaoAI] 首次进入连续对话模式 ({cls.current_retries}/{cls.max_listening_retries})")
-                logger.info("[XiaoAI] 🎯 TTS播放完毕，重新唤醒小爱等待下一句...")
+            await cls.conversation.handle_playing_status(
+                playing_status,
+                get_speaker(),
+            )
         
         else:
             # 记录未处理的事件类型，可能包含监听退出信息
@@ -164,17 +164,29 @@ class XiaoAI:
         def run_event_loop():
             cls.async_loop = asyncio.new_event_loop()
             asyncio.set_event_loop(cls.async_loop)
+            cls._async_loop_ready.set()
             cls.async_loop.run_forever()
 
         thread = threading.Thread(target=run_event_loop, daemon=True)
         thread.start()
+        cls._async_loop_ready.wait(timeout=2)
 
     @classmethod
     def __on_event(cls, event: str):
-        asyncio.run_coroutine_threadsafe(
+        future = asyncio.run_coroutine_threadsafe(
             cls.on_event(event),
             cls.async_loop,
         )
+
+        def _log_result(done_future):
+            try:
+                done_future.result()
+            except Exception as exc:
+                logger.error(
+                    f"[XiaoAI] Event handler failed: {type(exc).__name__}: {exc}"
+                )
+
+        future.add_done_callback(_log_result)
 
     @classmethod
     async def init_xiaoai(cls):
@@ -191,9 +203,4 @@ class XiaoAI:
 
     @classmethod
     def stop_conversation(cls):
-        '''
-         停止连续对话
-        '''
-        logger.info("[XiaoAI] 停止连续对话")
-        cls.conversing = False
-        cls.current_retries = 0
+        cls.conversation.stop()

@@ -70,60 +70,70 @@ class XiaozhiLogger:
         
         # 添加处理器
         self.logger.addHandler(console_handler)
+
+    def _format_message(self, message: str, module: Optional[str] = None) -> str:
+        if module and not message.startswith("["):
+            return f"[{module}] {message}"
+        return message
     
-    def debug(self, message: str):
+    def debug(self, message: str, module: Optional[str] = None):
         """调试日志"""
-        self.logger.debug(message)
+        self.logger.debug(self._format_message(message, module))
     
-    def info(self, message: str):
+    def info(self, message: str, module: Optional[str] = None):
         """信息日志"""
-        self.logger.info(message)
+        self.logger.info(self._format_message(message, module))
     
-    def warning(self, message: str):
+    def warning(self, message: str, module: Optional[str] = None):
         """警告日志"""
-        self.logger.warning(message)
+        self.logger.warning(self._format_message(message, module))
     
-    def error(self, message: str):
+    def error(self, message: str, module: Optional[str] = None):
         """错误日志"""
-        self.logger.error(message)
+        self.logger.error(self._format_message(message, module))
     
-    def critical(self, message: str):
+    def critical(self, message: str, module: Optional[str] = None):
         """严重错误日志"""
-        self.logger.critical(message)
+        self.logger.critical(self._format_message(message, module))
     
-    def wakeup(self, keyword: str, speech_prob: Optional[float] = None):
+    def wakeup(
+        self,
+        keyword: str,
+        speech_prob: Optional[float] = None,
+        module: str = "Wakeup",
+    ):
         """唤醒日志"""
         if speech_prob:
             message = f"🔥 触发唤醒: {keyword} (speech_prob: {speech_prob:.2f})"
         else:
             message = f"🔥 触发唤醒: {keyword}"
-        self.info(message)
+        self.info(message, module=module)
     
-    def user_speech(self, text: str):
+    def user_speech(self, text: str, module: str = "XiaoZhi"):
         """用户语音日志"""
-        self.info(f"💬 我说：{text}")
+        self.info(f"💬 我说：{text}", module=module)
     
-    def ai_response(self, text: str):
+    def ai_response(self, text: str, module: str = "XiaoZhi"):
         """AI回复日志"""
-        self.info(f"🤖 小智：{text}")
+        self.info(f"🤖 小智：{text}", module=module)
     
-    def vad_event(self, event: str, details: str = ""):
+    def vad_event(self, event: str, details: str = "", module: str = "VAD"):
         """VAD事件日志"""
         message = f"🎤 VAD: {event}"
         if details:
             message += f" ({details})"
-        self.info(message)
+        self.info(message, module=module)
     
-    def kws_event(self, event: str, details: str = ""):
+    def kws_event(self, event: str, details: str = "", module: str = "KWS"):
         """KWS事件日志"""
         message = f"🔍 KWS: {event}"
         if details:
             message += f" ({details})"
-        self.info(message)
+        self.info(message, module=module)
     
-    def device_state(self, state: str):
+    def device_state(self, state: str, module: str = "Device"):
         """设备状态日志"""
-        self.info(f"📱 状态: {state}")
+        self.info(f"📱 状态: {state}", module=module)
 
 # 创建全局日志实例
 logger = XiaozhiLogger()

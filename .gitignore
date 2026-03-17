@@ -35,3 +35,5 @@ core/models/
 # Local env files
 .env
 .env.local
+
+tests/*.wav

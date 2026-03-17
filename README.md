@@ -6,7 +6,7 @@
 
 > 本项目由 [Open-XiaoAI](https://github.com/idootop/open-xiaoai) 的 `examples/xiaozhi/` 演进而来，在保留小智 AI 接入能力的基础上，新增 OpenClaw 集成、HTTP API Server 等功能，已成为独立项目发展。
 
-**演示视频：** [https://www.bilibili.com/video/BV1DHcBz1Ex7](https://www.bilibili.com/video/BV1DHcBz1Ex7)
+**演示视频：** <https://www.bilibili.com/video/BV1DHcBz1Ex7>
 
 ## 功能特性
 
@@ -24,43 +24,49 @@
 flowchart TB
     subgraph XiaoaiDevice["📱 小爱音箱"]
         direction LR
-        Mic["麦克风"] -->|"PCM"| AudioCapture["音频采集/播放<br/>open-xiaoai-client"]
+        Mic["麦克风"] -->|"PCM"| AudioCapture["open-xiaoai-client<br/>音频采集 / 播放"]
         AudioCapture -->|"播放"| Speaker["扬声器"]
-        XiaoaiOS["小爱音箱系统"] <-->|"语音识别/TTS/控制"| AudioCapture
+        XiaoaiOS["小爱音箱系统"] <-->|"ASR / TTS / 控制"| AudioCapture
     end
 
     subgraph OpenXiaoAI["🧠 Open-XiaoAI Bridge"]
-        WSServer["open-xiaoai-server · WebSocket :4399"]
-        XiaoaiPy["XiaoAI · 小爱接口"]
+        direction TB
+        WSServer["open_xiaoai_server<br/>WebSocket :4399"]
+        XiaoaiPy["XiaoAI<br/>设备接入 / 事件桥接"]
+        GlobalStream["GlobalStream<br/>全局音频流"]
 
-        subgraph AudioPipeline["音频处理管道"]
+        subgraph AudioPipeline["音频处理"]
             direction LR
-            Codec["Codec"] --> VAD["VAD (Silero)"] -->|"检测到语音"| KWS["KWS (Sherpa)"]
+            KWS["KWS<br/>唤醒词检测"]
+            VAD["VAD<br/>语音起止检测"]
+            Codec["AudioCodec<br/>编码 / 播放"]
         end
 
-        subgraph CoreServices["核心服务"]
+        subgraph Runtime["运行时控制"]
             direction LR
-            Config["config.py"] -->|"before/after_wakeup"| EventMgr["EventManager"]
-            EventMgr -->|"before_wakeup()"| MainApp["MainApp"]
-            MainApp -->|"状态管理"| SpeakerMgr["SpeakerManager"]
+            MainApp["MainApp<br/>主循环 / device_state"]
+            WakeupMgr["WakeupSessionManager<br/>小智唤醒会话"]
+            XiaoAIConv["XiaoAIConversationController<br/>小爱连续对话"]
+            SpeakerMgr["SpeakerManager"]
+            Config["config.py<br/>before/after_wakeup"]
         end
 
-        subgraph AIConnectors["AI 连接器（可选）"]
+        subgraph AIConnectors["连接器（可选）"]
             direction LR
-            Xiaozhi["XiaoZhi<br/>小智 AI 桥接器"]
-            OpenclawMgr["OpenClawManager<br/>OpenClaw 桥接器"]
+            Xiaozhi["XiaoZhi<br/>小智协议客户端"]
+            OpenclawMgr["OpenClawManager<br/>OpenClaw 代理网关"]
         end
 
         subgraph ServicesLayer["服务层（可选）"]
             direction LR
-            APIServer["API Server · HTTP :9092"]
-            TTSModule["TTS Module · 语音合成"]
+            APIServer["API Server<br/>HTTP :9092"]
+            TTSModule["Doubao TTS Module"]
         end
     end
 
     subgraph ExternalServices["☁️ 外部服务"]
         direction TB
-        XiaozhiServer["小智 AI 服务器"]
+        XiaozhiServer["xiaozhi-esp32-server"]
         OpenclawGW["OpenClaw Gateway"]
         DoubaoTTS["豆包语音服务"]
         XiaozhiServer ~~~ OpenclawGW ~~~ DoubaoTTS
@@ -73,30 +79,48 @@ flowchart TB
         Curl ~~~ XiaoaiTTS
     end
 
-    %% ===== 音频链路 =====
+    %% ===== 设备接入 =====
     AudioCapture <-->|"WebSocket"| WSServer
-    WSServer -->|"Stream / Event"| XiaoaiPy
-    XiaoaiPy -->|"RPC"| WSServer
-    XiaoaiPy -->|"音频数据"| Codec
-    XiaoaiPy -->|"语音识别结果"| EventMgr
-    KWS -->|"匹配唤醒词"| EventMgr
+    WSServer -->|"音频帧 / 设备事件"| XiaoaiPy
+    XiaoaiPy -->|"播放 / 控制"| WSServer
+
+    %% ===== 音频流 =====
+    XiaoaiPy -->|"输入音频"| GlobalStream
+    GlobalStream --> KWS
+    GlobalStream --> VAD
+    GlobalStream --> Codec
+
+    %% ===== 控制流 =====
+    Config -->|"before/after_wakeup"| WakeupMgr
+    MainApp -->|"初始化 / 主 loop"| WakeupMgr
+    MainApp -->|"device_state"| Codec
+    MainApp -->|"device_state"| SpeakerMgr
+    XiaoaiPy -->|"ASR / playing / AudioPlayer"| WakeupMgr
+    XiaoaiPy -->|"AudioPlayer / playing"| XiaoAIConv
+    KWS -->|"唤醒词"| WakeupMgr
+    VAD -->|"speech / silence"| WakeupMgr
+
+    %% ===== 小智对话链路（可选） =====
+    WakeupMgr -->|"listen start / stop"| Xiaozhi
+    MainApp -->|"启动 / 回调接线"| Xiaozhi
+    Codec -->|"编码音频"| Xiaozhi
+    Xiaozhi -->|"TTS / STT / LLM"| MainApp
+    Xiaozhi <-->|"WebSocket"| XiaozhiServer
 
     %% ===== 播放回路 =====
     SpeakerMgr -->|"play()"| XiaoaiPy
-    XiaoaiPy -->|"音频数据"| WSServer
+    Codec -->|"播放音频"| XiaoaiPy
 
-    %% ===== AI 连接 =====
-    EventMgr -.->|"唤醒小智"| Xiaozhi
-    MainApp -.->|"启动小智 AI"| Xiaozhi
+    %% ===== OpenClaw 代理链路（可选） =====
     MainApp -.->|"启动 OpenClaw"| OpenclawMgr
-    Xiaozhi <-->|"WebSocket"| XiaozhiServer
+    MainApp -.->|"send_to_openclaw()"| OpenclawMgr
     OpenclawMgr <-->|"WebSocket"| OpenclawGW
 
     %% ===== 服务层 =====
     MainApp -.->|"启动 API Server"| APIServer
     APIServer -->|"调用"| SpeakerMgr
     APIServer -.->|"TTS"| TTSModule
-    OpenclawMgr -.->|"TTS"| TTSModule
+    OpenclawMgr -.->|"服务端自动 TTS"| TTSModule
     TTSModule -.->|"合成语音"| DoubaoTTS
     TTSModule -->|"播放"| SpeakerMgr
 
@@ -116,7 +140,7 @@ flowchart TB
 
     class Mic,Speaker,XiaoaiOS hardware
     class AudioCapture,WSServer rust
-    class MainApp,EventMgr,SpeakerMgr,Config core
+    class MainApp,WakeupMgr,XiaoAIConv,SpeakerMgr,Config,GlobalStream core
     class VAD,KWS,Codec audio
     class XiaoaiPy,Xiaozhi,OpenclawMgr connector
     class APIServer,TTSModule api
@@ -125,27 +149,40 @@ flowchart TB
 
 ### 工作流程说明
 
-1. **小智 AI**
+1. **小智唤醒与对话链路**
    ```
-   麦克风 → Rust Client → WebSocket → XiaoAI → Codec → VAD → KWS → EventManager →
-   before_wakeup()回调 → MainApp → XiaoZhi → 小智 AI 服务器
+   麦克风 → open-xiaoai-client → open_xiaoai_server → XiaoAI → GlobalStream
+   → KWS 或小爱 ASR → WakeupSessionManager → before_wakeup()
+   → VAD 等待 speech / silence → XiaoZhi(start/stop listening)
+   → MainApp 切换 LISTENING / SPEAKING → AudioCodec 编码 / 播放
+   → xiaozhi-esp32-server
    ```
+2. **小爱连续对话**
+   ```
+   小爱 ASR / AudioPlayer / playing 事件
+   → XiaoAI → XiaoAIConversationController
+   → 决定是否继续唤醒小爱或退出小爱连续对话
+   ```
+   > 小爱连续对话和小智唤醒会话是两套独立机制，日志和状态不应混用。
+3. **OpenClaw 代理链路**
+   ```
+   小爱语音识别指令 → 特定口令（如 "让龙虾 xxx"）
+   → before_wakeup() → app.send_to_openclaw()
+   → OpenClawManager → OpenClaw Gateway → AI Agent
 
-2. **OpenClaw**
-   ```
-   小爱语音识别指令 → "让龙虾 xxx" → XiaoAI → before_wakeup() →
-   send_to_openclaw() → OpenClawManager → OpenClaw Gateway → AI Agent
-   ↓
-   Agent 自由选择音色/语速/情感 → 调用 skills/xiaoai-tts → HTTP API
-   ↓
-   SpeakerManager → 小爱音箱播放
-   ```
-   > 也可以在服务端配置 `tts_enabled: True` 让服务端自动合成，但灵活性不如让 Agent 主动调用 skill。
+   路线 A：Agent 主动播报
+   → Agent 自由选择音色/语速/情感
+   → 调用 skills/xiaoai-tts → HTTP API → SpeakerManager → 小爱音箱播放
 
-3. **远程控制（HTTP API）**
+   路线 B：服务端自动播报
+   → OpenClawManager（tts_enabled=True）
+   → Doubao TTS Module → SpeakerManager → 小爱音箱播放
+   ```
+   > 两条路线二选一即可：要么让 Agent 主动调 skill，要么让服务端按 `tts_enabled=True` 自动合成并播放。
+4. **远程控制（HTTP API）**
    ```
    curl POST /api/play/text → API Server → SpeakerManager → XiaoAI →
-   Rust Client → 小爱音箱播放
+   open_xiaoai_server → open-xiaoai-client → 小爱音箱播放
    ```
 
 ## 快速开始
@@ -175,7 +212,7 @@ curl -O https://raw.githubusercontent.com/coderzc/open-xiaoai-bridge/main/config
 curl -O https://raw.githubusercontent.com/coderzc/open-xiaoai-bridge/main/docker-compose.yml
 ```
 
-**2. 按需修改 `config.py` 和 `docker-compose.yml`**（取消注释需要启用的功能）
+**2. 按需修改** **`config.py`** **和** **`docker-compose.yml`**（取消注释需要启用的功能）
 
 **3. 启动服务**
 
@@ -223,13 +260,13 @@ CONFIG_PATH=/path/to/custom_config.py uv run main.py
 
 ### 环境变量配置
 
-| 环境变量            | 说明                                  | 示例                      |
-| ------------------- | ------------------------------------- | ------------------------- |
-| `XIAOZHI_ENABLE`    | 连接小智 AI 服务                      | `XIAOZHI_ENABLE=1`        |
+| 环境变量                | 说明                            | 示例                        |
+| ------------------- | ----------------------------- | ------------------------- |
+| `XIAOZHI_ENABLE`    | 连接小智 AI 服务                    | `XIAOZHI_ENABLE=1`        |
 | `API_SERVER_ENABLE` | 开启 HTTP API 服务（端口 9092）       | `API_SERVER_ENABLE=1`     |
 | `API_SERVER_HOST`   | API Server 监听地址（默认 127.0.0.1） | `API_SERVER_HOST=0.0.0.0` |
 | `API_SERVER_PORT`   | API Server 监听端口（默认 9092）      | `API_SERVER_PORT=9092`    |
-| `OPENCLAW_ENABLED`  | 启用 OpenClaw 集成                    | `OPENCLAW_ENABLED=1`      |
+| `OPENCLAW_ENABLED`  | 启用 OpenClaw 集成                | `OPENCLAW_ENABLED=1`      |
 
 ## API Server 集成
 
@@ -237,17 +274,17 @@ CONFIG_PATH=/path/to/custom_config.py uv run main.py
 
 ### API 端点
 
-| 方法 | 路径                     | 说明                |
-| ---- | ------------------------ | ------------------- |
-| POST | `/api/play/text`         | 播放文字（TTS）     |
-| POST | `/api/play/url`          | 播放音频链接        |
-| POST | `/api/play/file`         | 上传并播放音频文件  |
+| 方法   | 路径                       | 说明           |
+| ---- | ------------------------ | ------------ |
+| POST | `/api/play/text`         | 播放文字（TTS）    |
+| POST | `/api/play/url`          | 播放音频链接       |
+| POST | `/api/play/file`         | 上传并播放音频文件    |
 | POST | `/api/tts/doubao`        | 豆包 TTS 合成并播放 |
-| GET  | `/api/tts/doubao_voices` | 获取可用音色列表    |
-| POST | `/api/wakeup`            | 唤醒小爱音箱        |
-| POST | `/api/interrupt`         | 打断当前播放        |
-| GET  | `/api/status`            | 获取播放状态        |
-| GET  | `/api/health`            | 健康检查            |
+| GET  | `/api/tts/doubao_voices` | 获取可用音色列表     |
+| POST | `/api/wakeup`            | 唤醒小爱音箱       |
+| POST | `/api/interrupt`         | 打断当前播放       |
+| GET  | `/api/status`            | 获取播放状态       |
+| GET  | `/api/health`            | 健康检查         |
 
 ### 使用示例
 
@@ -281,11 +318,11 @@ curl -X POST http://localhost:9092/api/interrupt
 
 OpenClaw 收到消息后，可以通过两种方式回复语音：
 
-| | Agent 主动调用 `skills/xiaoai-tts` | 服务端自动播放回复（`tts_enabled: True`） |
-|---|---|---|
-| **灵活性** | 高 — Agent 可自由选择音色、语速、情感等参数 | 低 — 只能使用固定的音色、语气和语速 |
-| **稳定性** | 较差 — Agent 调用 skill 不一定每次都成功 | 好 — 由服务端直接合成，流程简单可靠 |
-| **响应速度** | 较慢 — 需要 Agent 额外处理步骤 | 快 — 服务端收到回复后立即合成播报 |
+| <br />   | Agent 主动调用 `skills/xiaoai-tts` | 服务端自动播放回复（`tts_enabled: True`） |
+| -------- | ------------------------------ | ------------------------------ |
+| **灵活性**  | 高 — Agent 可自由选择音色、语速、情感等参数     | 低 — 只能使用固定的音色、语气和语速            |
+| **稳定性**  | 较差 — Agent 调用 skill 不一定每次都成功   | 好 — 由服务端直接合成，流程简单可靠            |
+| **响应速度** | 较慢 — 需要 Agent 额外处理步骤           | 快 — 服务端收到回复后立即合成播报             |
 
 两种方式对应的提示词不同，需要在 `config.py` 的 `before_wakeup` 中调整发送给 Agent 的消息内容：
 
@@ -332,13 +369,13 @@ volumes:
   ./openclaw:/app/openclaw
 ```
 
-2. 首次启动时，OpenClaw 会把这个客户端识别为一个待配对设备。请到 OpenClaw UI 中手动批准：
+1. 首次启动时，OpenClaw 会把这个客户端识别为一个待配对设备。请到 OpenClaw UI 中手动批准：
 
 ```text
 Nodes -> Devices -> 找到对应设备 -> Approve
 ```
 
-### 在 before_wakeup 中使用
+### 在 before\_wakeup 中使用
 
 编辑 `config.py`，通过 `app.send_to_openclaw()` 发送消息。
 
@@ -587,7 +624,7 @@ APP_CONFIG = {
 xiaoai-tts tts "你好" -s S_xxxxxxxx
 ```
 
-> 说明：`S_` 前缀的音色是通过声音复刻 2.0 模型训练的用户自定义音色，系统会自动匹配正确的 resource_id，无需额外配置。
+> 说明：`S_` 前缀的音色是通过声音复刻 2.0 模型训练的用户自定义音色，系统会自动匹配正确的 resource\_id，无需额外配置。
 
 #### Q：TTS 播放是阻塞还是非阻塞的？
 
@@ -603,6 +640,7 @@ APP_CONFIG = {
 ```
 
 **区别**：
+
 - **非阻塞模式**（默认）：启动播放后立即返回，可能被后续的音频指令打断
 - **阻塞模式**：播放完成后才继续执行，不会被其他音频打断
 
@@ -656,12 +694,11 @@ python3 tests/test_tts_latency.py --formats mp3,pcm --rounds 3 --repeat 8
 ```
 
 输出会对比：
+
 - 首个编码块到达时间 `first_encoded_ms`
 - 首个可播放 PCM 时间 `first_pcm_ms`
 - 整段处理总耗时 `total_ms`
 - 编码后音频体积与 PCM 体积
-
-
 
 1. 确认 OpenClaw Gateway 已启动，地址和端口（默认 `18789`）可访问
 2. 检查 `config.py` 或环境变量中的 `url` / `token` 是否正确

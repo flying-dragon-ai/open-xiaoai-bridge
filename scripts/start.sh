@@ -31,7 +31,21 @@ if ! command -v uv &> /dev/null; then
 fi
 echo -e "${GREEN}✓ uv 已安装${NC}"
 
-# 2. 检查 KWS 相关模型和关键词文件
+# 2. 同步虚拟环境和依赖
+echo ""
+echo "正在同步虚拟环境和依赖..."
+if uv sync; then
+    echo -e "${GREEN}✓ 虚拟环境已就绪，依赖已安装${NC}"
+else
+    echo -e "${RED}错误: 依赖安装失败${NC}"
+    exit 1
+fi
+
+# Set DYLD_LIBRARY_PATH so sherpa-onnx can find libonnxruntime from onnxruntime package
+ONNX_LIB_DIR="$(uv run python -c "from pathlib import Path; import onnxruntime; print(Path(onnxruntime.__file__).parent / 'capi')" 2>/dev/null)" && \
+    export DYLD_LIBRARY_PATH="${ONNX_LIB_DIR}${DYLD_LIBRARY_PATH:+:$DYLD_LIBRARY_PATH}"
+
+# 3. 检查 KWS 相关模型和关键词文件
 if [[ "$XIAOZHI_ENABLED" =~ ^(1|true|yes)$ ]]; then
     MODEL_DIR="core/models"
     REQUIRED_MODELS=("silero_vad.onnx" "tokens.txt" "bpe.model")
@@ -101,7 +115,7 @@ if [[ "$XIAOZHI_ENABLED" =~ ^(1|true|yes)$ ]]; then
     echo ""
     echo -e "${YELLOW}生成关键词文件...${NC}"
     set +e
-    keyword_output=$(python3 core/services/audio/kws/keywords.py 2>&1)
+    keyword_output=$(uv run python core/services/audio/kws/keywords.py 2>&1)
     keyword_status=$?
     set -e
     if [ $keyword_status -eq 0 ]; then
@@ -120,15 +134,15 @@ else
     echo -e "${YELLOW}⚠ 小智未启用，跳过模型检查和关键词预生成${NC}"
 fi
 
-# 3. 检查配置
+# 4. 检查配置
 echo ""
 echo "检查配置..."
 
 # 先检查 Python 是否能导入 config
-if ! python3 -c "import sys; sys.path.insert(0, '.'); from config import APP_CONFIG" 2>/dev/null; then
+if ! uv run python -c "import sys; sys.path.insert(0, '.'); from config import APP_CONFIG" 2>/dev/null; then
     echo -e "${YELLOW}⚠ 无法加载 config.py，跳过配置检查${NC}"
 else
-    python3 -c "
+    uv run python -c "
 import sys
 sys.path.insert(0, '.')
 from config import APP_CONFIG

@@ -3,15 +3,14 @@ import os
 import threading
 import time
 
-from core.event import EventManager
-from core.ref import get_speaker, get_xiaoai, get_xiaozhi, set_kws
+from core.ref import get_app, get_xiaoai, get_xiaozhi, set_kws
 from core.services.audio.kws.sherpa import SherpaOnnx
 from core.services.audio.stream import MyAudio
 from core.services.audio.vad.silero import Silero
 from core.services.protocols.typing import AudioConfig, DeviceState
-from core.utils.base import get_env
 from core.utils.config import ConfigManager
 from core.utils.logger import logger
+from core.wakeup_session import EventManager
 
 
 class _KWS:
@@ -45,9 +44,6 @@ class _KWS:
         self.apply_runtime_config()
 
     def start(self):
-        if not get_env("CLI"):
-            return
-
         self.audio = MyAudio.create()
         self.stream = self.audio.open(
             format=AudioConfig.FORMAT,
@@ -106,14 +102,14 @@ class _KWS:
                 if not self.vad_active:
                     self.vad_active = True
                     self.vad_start_time = time.time()
-                    logger.debug(f"VAD: 检测到语音，开始 KWS 检测")
+                    logger.debug("检测到语音，开始 KWS 检测", module="KWS")
                 
                 self.vad_silence_frames = 0
                 
                 # 只在有语音时才进行 KWS 检测
                 result = SherpaOnnx.kws(frames)
                 if result:
-                    logger.wakeup(result)
+                    logger.wakeup(result, module="KWS")
                     self.on_message(result)
                     # 唤醒后重置状态
                     self.vad_active = False
@@ -129,7 +125,7 @@ class _KWS:
                         # 继续将音频送入 KWS，允许短暂的静音
                         result = SherpaOnnx.kws(frames)
                         if result:
-                            logger.wakeup(result)
+                            logger.wakeup(result, module="KWS")
                             self.on_message(result)
                             self.vad_active = False
                             self.vad_silence_frames = 0
@@ -137,15 +133,31 @@ class _KWS:
                         # 静音超过阈值，停止处理
                         duration_ms = self.vad_silence_frames * self.frame_duration_ms
                         active_duration_ms = (time.time() - self.vad_start_time) * 1000 if hasattr(self, 'vad_start_time') else -1
-                        logger.debug(f"VAD: 检测到持续静音（{duration_ms:.0f}ms），暂停 KWS，本次 KWS 监听时长 {active_duration_ms:.0f}ms")
+                        logger.debug(
+                            (
+                                f"检测到持续静音（{duration_ms:.0f}ms），暂停 KWS，"
+                                f"本次 KWS 监听时长 {active_duration_ms:.0f}ms"
+                            ),
+                            module="KWS",
+                        )
                         self.vad_active = False
                         self.vad_silence_frames = 0
 
     def on_message(self, text: str):
-        asyncio.run_coroutine_threadsafe(
+        loop = get_app().loop if get_app() else get_xiaoai().async_loop
+        logger.info(f"[KWS] Dispatch wakeup event: {text}")
+        future = asyncio.run_coroutine_threadsafe(
             EventManager.wakeup(text, "kws"),
-            get_xiaoai().async_loop,
+            loop,
         )
+
+        def _log_result(done_future):
+            try:
+                done_future.result()
+            except Exception as exc:
+                logger.error(f"[KWS] Wakeup dispatch failed: {type(exc).__name__}: {exc}")
+
+        future.add_done_callback(_log_result)
 
 
 KWS = _KWS()

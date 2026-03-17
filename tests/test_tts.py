@@ -6,6 +6,10 @@ Usage:
   python test_tts.py              # Normal mode: synthesize MP3 and play
   python test_tts.py --compare    # Compare mode: compare ogg_opus vs mp3
   python test_tts.py --no-play    # Normal mode without playback
+  python test_tts.py --save       # Save output audio as WAV file(s) to tests/
+  python test_tts.py --text "你好世界"  # Override synthesis text
+  python test_tts.py --format pcm  # Override audio format (pcm, mp3, ogg_opus)
+  python test_tts.py --speed 1.5   # Override speech speed (default: 1.0)
   python test_tts.py --speaker-id zh_male_lengkugege_emo_v2_mars_bigtts  # Override speaker
   python test_tts.py --resource-id seed-tts-1.0  # Override resource_id
 """
@@ -49,6 +53,16 @@ from core.services.tts.doubao import DoubaoTTS
 
 
 SAMPLE_RATE = 24000
+
+
+def save_wav(audio_data: bytes, path: str):
+    """Save raw PCM audio data as a WAV file."""
+    with wave.open(path, "wb") as wf:
+        wf.setnchannels(1)
+        wf.setsampwidth(2)
+        wf.setframerate(SAMPLE_RATE)
+        wf.writeframes(audio_data)
+    print(f"  💾 Saved: {path}")
 
 
 def play_audio(audio_data: bytes):
@@ -156,10 +170,10 @@ def fetch_encoded_audio(
     return bytes(encoded_audio) if encoded_audio else None
 
 
-def synthesize_pcm(tts: DoubaoTTS, text: str, fmt: str = None) -> bytes | None:
+def synthesize_pcm(tts: DoubaoTTS, text: str, fmt: str = None, speed: float = 1.0) -> bytes | None:
     """Fetch encoded audio in Python and decode it in Rust."""
     audio_format = fmt or tts.audio_format
-    encoded_audio = fetch_encoded_audio(tts, text, fmt=audio_format)
+    encoded_audio = fetch_encoded_audio(tts, text, fmt=audio_format, speed=speed)
     if not encoded_audio:
         return None
     return bytes(
@@ -171,24 +185,30 @@ def synthesize_pcm(tts: DoubaoTTS, text: str, fmt: str = None) -> bytes | None:
     )
 
 
-TEXT = '央视财经频道《经济半小时》两会特别节目《中国经济向新行：智能经济活力奔涌》播出，聚焦我国人工智能大模型已进入全球第一梯队，而阿里千问APP作为AI助手的典型代表，正以"AI办事"的创新模式，深刻重塑大众的日常生活。'
+DEFAULT_TEXT = '央视财经频道《经济半小时》两会特别节目《中国经济向新行：智能经济活力奔涌》播出，聚焦我国人工智能大模型已进入全球第一梯队，而阿里千问APP作为AI助手的典型代表，正以"AI办事"的创新模式，深刻重塑大众的日常生活。'
 
-def run_normal(play: bool = True):
-    """Normal mode: synthesize MP3 and optionally play."""
+def run_normal(play: bool = True, save: bool = False, text: str = DEFAULT_TEXT, fmt: str = None, speed: float = 1.0):
+    """Normal mode: synthesize and optionally play."""
     tts, tts_config = get_tts()
+    audio_format = fmt or tts.audio_format
 
     print(f"\n{'='*60}")
     print("Doubao TTS - Normal Mode")
     print(f"{'='*60}")
     print(f"Speaker : {tts.speaker}")
-    print(f"Text    : {TEXT[:60]}...")
+    print(f"Format  : {audio_format}")
+    print(f"Speed   : {speed}")
+    print(f"Text    : {text[:60]}...")
 
     start = time.time()
-    audio_data = synthesize_pcm(tts, TEXT)
+    audio_data = synthesize_pcm(tts, text, fmt=audio_format, speed=speed)
     elapsed = time.time() - start
 
     if audio_data:
         print(f"\n✅ Success! Size: {len(audio_data):,} bytes, Time: {elapsed:.2f}s")
+        if save:
+            out_path = str(PROJECT_ROOT / "tests" / "tts_output.wav")
+            save_wav(audio_data, out_path)
         if play:
             print("Playing audio...")
             play_audio(audio_data)
@@ -200,7 +220,7 @@ def run_normal(play: bool = True):
     print(f"{'='*60}")
 
 
-def run_compare(play: bool = True):
+def run_compare(play: bool = True, save: bool = False, text: str = DEFAULT_TEXT, speed: float = 1.0):
     """Compare mode: ogg_opus vs mp3, play both if requested."""
     tts, tts_config = get_tts()
 
@@ -208,13 +228,14 @@ def run_compare(play: bool = True):
     print("Doubao TTS - Compare Mode (ogg_opus vs mp3)")
     print(f"{'='*60}")
     print(f"Speaker : {tts.speaker}")
-    print(f"Text    : {TEXT[:60]}...")
+    print(f"Speed   : {speed}")
+    print(f"Text    : {text[:60]}...")
 
     results = {}
     for fmt in ("ogg_opus", "mp3"):
         print(f"\n--- {fmt} ---")
         start = time.time()
-        data = synthesize_pcm(tts, TEXT, fmt=fmt)
+        data = synthesize_pcm(tts, text, fmt=fmt, speed=speed)
         elapsed = time.time() - start
         if data:
             print(f"✅ Size: {len(data):,} bytes, Time: {elapsed:.2f}s")
@@ -242,6 +263,12 @@ def run_compare(play: bool = True):
                 print(f"\nPlaying {fmt}...")
                 play_audio(data)
 
+    if save:
+        for fmt, data in results.items():
+            if data:
+                out_path = str(PROJECT_ROOT / "tests" / f"tts_output_{fmt}.wav")
+                save_wav(data, out_path)
+
     print(f"\n{'='*60}")
     print("Done")
     print(f"{'='*60}")
@@ -250,8 +277,27 @@ def run_compare(play: bool = True):
 if __name__ == "__main__":
     compare_mode = "--compare" in sys.argv
     no_play = "--no-play" in sys.argv
+    save = "--save" in sys.argv
+
+    text = DEFAULT_TEXT
+    if "--text" in sys.argv:
+        idx = sys.argv.index("--text")
+        if idx + 1 < len(sys.argv):
+            text = sys.argv[idx + 1]
+
+    fmt = None
+    if "--format" in sys.argv:
+        idx = sys.argv.index("--format")
+        if idx + 1 < len(sys.argv):
+            fmt = sys.argv[idx + 1]
+
+    speed = 1.0
+    if "--speed" in sys.argv:
+        idx = sys.argv.index("--speed")
+        if idx + 1 < len(sys.argv):
+            speed = float(sys.argv[idx + 1])
 
     if compare_mode:
-        run_compare(play=not no_play)
+        run_compare(play=not no_play, save=save, text=text, speed=speed)
     else:
-        run_normal(play=not no_play)
+        run_normal(play=not no_play, save=save, text=text, fmt=fmt, speed=speed)

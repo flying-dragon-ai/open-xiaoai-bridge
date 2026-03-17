@@ -18,6 +18,7 @@ init_project_context()
 
 from core.utils.config import ConfigManager
 from core.utils.file import get_model_file_path
+from core.utils.logger import logger
 
 
 def should_generate_keywords():
@@ -44,7 +45,7 @@ def get_args():
 def main():
     should_run, reason = should_generate_keywords()
     if not should_run:
-        print(f"[startup] KWS keyword generation skipped: {reason}")
+        logger.debug(f"Keyword generation skipped: {reason}", module="KWS")
         return 0
 
     required_files = [
@@ -53,7 +54,11 @@ def main():
     ]
     missing_files = [path for path in required_files if not Path(path).is_file()]
     if missing_files:
-        print(f"[startup] KWS keyword generation failed: missing model files: {', '.join(missing_files)}")
+        logger.debug(
+            "Keyword generation failed: missing model files: "
+            f"{', '.join(missing_files)}",
+            module="KWS",
+        )
         return 1
 
     from sherpa_onnx import text2token
@@ -72,7 +77,7 @@ def main():
                 f.write(" ".join(txt) + "\n")
             else:
                 f.write(" ".join(txt) + f" @{line}" + "\n")
-    print(f"[startup] KWS keyword file generated: {args['output']}")
+    logger.debug(f"Keyword file generated: {args['output']}", module="KWS")
     return 0
 
 

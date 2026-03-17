@@ -56,10 +56,19 @@ def setup_config():
 
     # 打印模块启用情况
     logger.info("[Main] 模块启用情况:")
-    logger.info("  - 小爱指令拦截器启用")
-    logger.info(f"  - 小智 AI Bridge (支持唤醒和连续对话):  {'启用' if enable_xiaozhi else '禁用'}")
-    logger.info(f"  - OpenClaw Bridge: {'启用' if enable_openclaw else '禁用'}")
-    logger.info(f"  - API Server: {'启用' if enable_api_server else '禁用'}")
+    logger.info("小爱指令拦截器启用", module="Main")
+    logger.info(
+        f"小智 AI Bridge (支持唤醒和连续对话): {'启用' if enable_xiaozhi else '禁用'}",
+        module="Main",
+    )
+    logger.info(
+        f"OpenClaw Bridge: {'启用' if enable_openclaw else '禁用'}",
+        module="Main",
+    )
+    logger.info(
+        f"API Server: {'启用' if enable_api_server else '禁用'}",
+        module="Main",
+    )
 
 
 def run_services(xiaozhi_mode: bool = False):

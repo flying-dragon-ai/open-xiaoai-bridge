@@ -464,6 +464,7 @@ class DoubaoTTS:
             except Exception:
                 audio_format = "mp3"
         self.audio_format = audio_format
+        print(f"audio_format: {self.audio_format}")
         try:
             self.auto_pcm_max_chars = int(
                 self.config_manager.get_app_config(

@@ -8,7 +8,6 @@ from core.ref import (
 )
 from core.services.audio.stream import MyAudio
 from core.services.protocols.typing import AudioConfig
-from core.utils.base import get_env
 
 
 class AudioCodec:
@@ -87,7 +86,7 @@ class AudioCodec:
 
             # 读取音频输入数据
             data = self.input_stream.read(
-                num_frames=None if get_env("CLI") else AudioConfig.FRAME_SIZE,
+                num_frames=None,
                 exception_on_overflow=False,
             )
             if not data:

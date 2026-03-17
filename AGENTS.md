@@ -19,10 +19,11 @@ open-xiaoai-bridge/
 ├── core/                 # Python 核心源码
 │   ├── app.py            # MainApp: 应用主控制器
 │   ├── xiaoai.py         # XiaoAI: 小爱音箱接口（事件、TTS、控制）
+│   ├── xiaoai_conversation.py # XiaoAIConversationController: 小爱连续对话策略
 │   ├── xiaozhi.py        # XiaoZhi: 小智 AI WebSocket 协议
 │   ├── openclaw.py       # OpenClawManager: OpenClaw 网关连接
 │   ├── ref.py            # 全局状态管理（get/set）
-│   ├── event.py          # EventManager: 事件总线
+│   ├── wakeup_session.py # WakeupSessionManager: 小智唤醒会话状态机
 │   ├── services/         # 服务层
 │   │   ├── speaker.py    # SpeakerManager: 音箱控制（播放/TTS/唤醒）
 │   │   ├── api_server.py # HTTP API 服务（远程控制）
@@ -51,6 +52,10 @@ open-xiaoai-bridge/
 - 可选启动 API Server
 - 管理音频设备状态（IDLE/LISTENING/SPEAKING/CONNECTING）
 
+**边界约束**:
+- `MainApp` 是业务主循环和设备状态的单一入口。
+- `device_state` 以 `MainApp` 为准，其他模块通过 `XiaoZhi.set_device_state()` 代理回 `MainApp`，不要各自维护平行状态。
+
 ### 2. XiaoAI (xiaoai.py)
 小爱音箱交互接口：
 - `on_input_data`: 接收麦克风音频输入
@@ -60,11 +65,19 @@ open-xiaoai-bridge/
 
 **重要**: 必须通过 `set_xiaoai(XiaoAI)` 注册，否则 `get_xiaoai()` 返回 None。
 
+**边界约束**:
+- `xiaoai.py` 负责设备接入和事件桥接，不负责承载完整的小爱连续对话策略。
+- 小爱连续对话状态放在 `xiaoai_conversation.py` 中，避免和唤醒状态机混在一起。
+
 ### 3. XiaoZhi (xiaozhi.py)
 小智 AI 协议客户端：
 - WebSocket 连接小智服务器
 - 发送音频/文本，接收 AI 响应
 - 支持 VAD（语音检测）和 KWS（关键词唤醒）
+
+**边界约束**:
+- `xiaozhi.py` 只负责协议收发，不负责唤醒策略和连续对话策略。
+- 协议层 `session_id` 必须由服务端消息更新，不能长期使用空值发送 `listen/abort/stop` 控制消息。
 
 ### 4. OpenClawManager (openclaw.py)
 OpenClaw 网关客户端：
@@ -83,12 +96,26 @@ OpenClaw 网关客户端：
 - `abort_xiaoai()`: 中断小爱当前操作
 - `ask_xiaoai()`: 让小爱执行指令
 
-### 6. 事件系统 (event.py)
-- `EventManager.wakeup()`: 触发唤醒流程
+### 6. 唤醒会话系统 (wakeup_session.py)
+- `WakeupSessionManager.wakeup()`: 触发小智唤醒流程
 - `before_wakeup`: 唤醒前回调（在 config.py 中配置）
 - `after_wakeup`: 唤醒后回调
 
-### 7. Rust 原生扩展 (native/)
+**重要**:
+- 它不是通用事件总线，而是“小智唤醒会话状态机”。
+- 只允许把 `on_speech` / `on_silence` 这类外部探测信号作为待等待事件缓存；不要把 `on_wakeup` / `on_interrupt` 这类控制步骤缓存进等待队列，否则会出现 `on_wakeup != on_speech` 这类误判。
+
+### 7. XiaoAIConversationController (xiaoai_conversation.py)
+- 管理小爱自己的连续对话状态
+- 处理“小爱监听超时后是否继续唤醒”
+- 处理小爱播放器事件对连续对话的影响
+
+**边界约束**:
+- 小爱的连续对话和小智的唤醒/会话超时是两套机制，不能混为一谈。
+- 小智超时退出时，不应打印“小爱停止连续对话”这类日志。
+- 小爱侧收到 `AudioPlayer` 事件时，只能在“小爱连续对话确实处于激活状态”时才允许停止连续对话。
+
+### 8. Rust 原生扩展 (native/)
 通过 [maturin](https://www.maturin.rs/) 编译的 Rust Python 扩展，提供高性能底层服务：
 - `lib.rs`: 扩展入口，使用 PyO3 绑定
 - `server.rs`: WebSocket 音频服务器（端口 4399）
@@ -149,6 +176,21 @@ APP_CONFIG = {
 - 所有 I/O 操作使用 `async/await`
 - 线程安全使用 `asyncio.run_coroutine_threadsafe()`
 - 全局事件循环在 `MainApp._run_event_loop()` 中运行
+
+**补充约束**:
+- `MainApp.loop` 是业务协程的主调度循环。
+- `XiaoAI.async_loop` 仅用于承接原生扩展回调和小爱事件桥接，不要把新的业务状态机优先挂到这条 loop 上。
+
+### 日志规范
+- 所有运行时日志都必须带模块前缀，例如 `[Main]`、`[XiaoAI]`、`[Wakeup]`、`[KWS]`、`[VAD]`、`[OpenClaw]`。
+- 正常运行路径禁止使用裸 `print` 输出日志；应使用 `core.utils.logger.logger`。
+- 唯一允许的裸输出是启动时的 ASCII banner，它是展示性输出，不视为普通运行日志。
+- 调试辅助输出应优先使用 `DEBUG` 级别，不要污染 `INFO` 级别。
+- `logger.wakeup()`、`logger.user_speech()`、`logger.ai_response()`、`logger.vad_event()`、`logger.kws_event()` 这类 helper 也必须显式携带模块语义，不能产出无模块前缀日志。
+
+### 历史兼容说明
+- `CLI` 环境变量不再作为唤醒、VAD、KWS 的功能开关使用。
+- 后续不要再引入依赖 `CLI` 的运行时分支；如需区分运行模式，应使用明确的功能开关或配置项。
 
 ### 添加新功能
 1. 在 `config.py` 中添加配置项

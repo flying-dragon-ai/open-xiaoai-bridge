@@ -1,14 +1,13 @@
 import threading
 import time
 
-from core.event import EventManager
 from core.ref import set_vad
 from core.services.audio.stream import MyAudio
 from core.services.audio.vad.silero import Silero
 from core.services.protocols.typing import AudioConfig
-from core.utils.base import get_env
 from core.utils.config import ConfigManager
 from core.utils.logger import logger
+from core.wakeup_session import EventManager
 
 
 class _VAD:
@@ -60,9 +59,6 @@ class _VAD:
 
     def start(self):
         """启动VAD检测器"""
-        if not get_env("CLI"):
-            return
-
         logger.vad_event("启动", "开始VAD语音检测服务")
         logger.vad_event("配置", f"阈值={self.threshold}, 最小语音时长={self.min_speech_duration}ms")
         
@@ -75,18 +71,12 @@ class _VAD:
 
     def pause(self):
         """暂停VAD检测"""
-        if not get_env("CLI"):
-            return
-
         self.paused = True
         self._reset_state()
         self.stream.stop_stream()
 
     def resume(self, target: str):
         """恢复VAD检测"""
-        if not get_env("CLI"):
-            return
-
         self.paused = False
         self.target = target
         self.stream.start_stream()

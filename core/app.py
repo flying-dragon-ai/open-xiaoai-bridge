@@ -15,10 +15,10 @@ import time
 
 from core.xiaozhi import XiaoZhi
 from core.xiaoai import XiaoAI
-from core.event import EventManager
 from core.ref import set_xiaozhi, set_app
 from core.utils.config import ConfigManager
 from core.utils.logger import logger
+from core.wakeup_session import EventManager
 from core.services.protocols.typing import (
     AbortReason,
     DeviceState,
@@ -257,8 +257,10 @@ class MainApp:
         for task in tasks:
             try:
                 task()
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.error(
+                    f"[MainApp] Scheduled task failed: {type(exc).__name__}: {exc}"
+                )
 
     def schedule(self, callback):
         """Schedule task to main loop."""
@@ -318,8 +320,10 @@ class MainApp:
                 self._handle_stt_message(data)
             elif msg_type == "llm":
                 self._handle_llm_message(data)
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.error(
+                f"[MainApp] Failed to handle incoming json: {type(exc).__name__}: {exc}"
+            )
 
     def _handle_tts_message(self, data):
         """Handle TTS message."""
@@ -333,7 +337,7 @@ class MainApp:
         elif state == "sentence_start":
             text = data.get("text", "")
             if text:
-                logger.ai_response(text)
+                logger.ai_response(text, module="XiaoZhi")
                 self.schedule(lambda: self.set_chat_message("assistant", text))
 
     def _handle_tts_start(self):
@@ -349,7 +353,7 @@ class MainApp:
         """Handle STT message."""
         text = data.get("text", "")
         if text:
-            logger.user_speech(text)
+            logger.user_speech(text, module="XiaoZhi")
             self.schedule(lambda: self.set_chat_message("user", text))
 
     def _handle_llm_message(self, data):
