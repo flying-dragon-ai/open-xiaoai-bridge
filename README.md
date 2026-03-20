@@ -2,7 +2,7 @@
 
 # Open-XiaoAI Bridge
 
-[![Python](https://img.shields.io/badge/Python-3.12+-3776ab?logo=python&logoColor=white)](https://www.python.org/) [![Rust](https://img.shields.io/badge/Rust-native_module-dea584?logo=rust&logoColor=white)](https://www.rust-lang.org/) [![License](https://img.shields.io/badge/License-MIT-green)](LICENSE) [![GitHub Stars](https://img.shields.io/github/stars/coderzc/open-xiaoai-bridge?style=flat&logo=github)](https://github.com/coderzc/open-xiaoai-bridge/stargazers) [![Docker Image](https://img.shields.io/badge/ghcr.io-open--xiaoai--bridge-2496ed?logo=docker&logoColor=white)](https://ghcr.io/coderzc/open-xiaoai-bridge) [![Platform](https://img.shields.io/badge/Platform-Linux%20%7C%20macOS-lightgrey)](https://github.com/coderzc/open-xiaoai-bridge)
+[![Python](https://img.shields.io/badge/Python-3.12+-3776ab?logo=python&logoColor=white)](https://www.python.org/) [![Rust](https://img.shields.io/badge/Rust-native_module-dea584?logo=rust&logoColor=white)](https://www.rust-lang.org/) [![License](https://img.shields.io/badge/License-MIT-green)](LICENSE) [![GitHub Stars](https://img.shields.io/github/stars/coderzc/open-xiaoai-bridge?style=flat&logo=github)](https://github.com/coderzc/open-xiaoai-bridge/stargazers) [![Docker Image](https://img.shields.io/badge/ghcr.io-open--xiaoai--bridge-2496ed?logo=docker&logoColor=white)](https://ghcr.io/coderzc/open-xiaoai-bridge)
 
 [![New](https://img.shields.io/badge/✨_新功能-OpenClaw_支持_自定义唤醒词_|_连续对话_|_克隆音色_|_流式播放-f97316)](https://github.com/coderzc/open-xiaoai-bridge/releases)
 
@@ -10,11 +10,11 @@
 
 打破小爱音箱的封闭生态，灵活接入多种 AI 服务，提供 HTTP API 实现远程控制。
 
-[📺 演示视频](https://www.bilibili.com/video/BV1DHcBz1Ex7) · [📖 快速开始](#快速开始) · [🔧 API 文档](#api-server) · [🐛 常见问题](#常见问题)
-
-</div>
+[📺 演示视频](https://www.bilibili.com/video/BV1DHcBz1Ex7) · [📖 快速开始](#-快速开始) · [🔧 API 文档](#-api-server) · [🐛 常见问题](#-常见问题)
 
 > 本项目由 [Open-XiaoAI](https://github.com/idootop/open-xiaoai) 的 `examples/xiaozhi/` 演进而来，已成为独立项目。
+
+</div>
 
 ---
 

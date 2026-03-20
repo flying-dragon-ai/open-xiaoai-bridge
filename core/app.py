@@ -1,4 +1,4 @@
-"""Main application controller for XiaoZhi Voice Assistant.
+"""Main application controller.
 
 This module manages the main application flow, coordinating between:
 - XiaoAI (Xiaomi speaker service)
@@ -8,7 +8,6 @@ This module manages the main application flow, coordinating between:
 """
 
 import asyncio
-import json
 import os
 import threading
 import time
@@ -18,9 +17,7 @@ from core.xiaoai import XiaoAI
 from core.ref import set_xiaozhi, set_app
 from core.utils.config import ConfigManager
 from core.utils.logger import logger
-from core.wakeup_session import EventManager
 from core.services.protocols.typing import (
-    AbortReason,
     DeviceState,
     EventType,
 )
@@ -67,9 +64,6 @@ class MainApp:
         self.device_state = DeviceState.IDLE
         self.current_text = ""
         self.current_emotion = "neutral"
-
-        # Audio
-        self.audio_codec = None
 
         # Event loop and threads
         self.loop = asyncio.new_event_loop()
@@ -125,20 +119,16 @@ class MainApp:
         asyncio.run_coroutine_threadsafe(XiaoAI.init_xiaoai(), self.loop)
 
         if self._enable_xiaozhi:
-            # Create XiaoZhi instance (handles protocol)
+            # Create XiaoZhi instance
             self.xiaozhi = XiaoZhi.instance()
-            self.xiaozhi.set_app(self)  # Give xiaozhi reference to app
-            set_xiaozhi(self.xiaozhi)   # Register for get_xiaozhi()
+            self.xiaozhi.set_app(self)
+            set_xiaozhi(self.xiaozhi)
 
             # Initialize XiaoZhi connection
             asyncio.run_coroutine_threadsafe(self._init_xiaozhi(), self.loop)
-        else:
-            # Without XiaoZhi, still init audio for display/speaker
-            self._init_audio()
 
         # Initialize OpenClaw if enabled
         if self._enable_openclaw:
-            # Initialize OpenClaw config from environment variables
             OpenClawManager.initialize_from_config()
             asyncio.run_coroutine_threadsafe(OpenClawManager.connect(), self.loop)
 
@@ -154,14 +144,14 @@ class MainApp:
         main_loop_thread.daemon = True
         main_loop_thread.start()
 
-        # Start audio services (if XiaoZhi or OpenClaw enabled, otherwise managed by XiaoAI)
+        # Start audio services
         if self._enable_xiaozhi or self._enable_openclaw:
             from core.services.audio.vad import VAD
             from core.services.audio.kws import KWS
             VAD.start()
             KWS.start()
 
-            # Pre-warm SenseVoice ASR model in background to avoid delay on first use
+            # Pre-warm SenseVoice ASR model in background
             if self._enable_openclaw:
                 from core.services.audio.asr.sherpa import SherpaASR
                 threading.Thread(target=SherpaASR._ensure_loaded, daemon=True, name="asr-warmup").start()
@@ -172,7 +162,7 @@ class MainApp:
         self.loop.run_forever()
 
     def _start_config_watcher(self):
-        """启动配置文件监听线程。"""
+        """Start config file watcher thread."""
         if self.config_watch_thread and self.config_watch_thread.is_alive():
             return
 
@@ -183,7 +173,7 @@ class MainApp:
         self.config_watch_thread.start()
 
     def _watch_config_file(self):
-        """轮询 config.py 变更并热加载。"""
+        """Poll config file for changes and hot-reload."""
         config_path = self.config.get_config_path()
         last_mtime = None
 
@@ -205,37 +195,10 @@ class MainApp:
             time.sleep(1)
 
     async def _init_xiaozhi(self):
-        """Initialize XiaoZhi connection."""
-        # Set up XiaoZhi callbacks
-        self.xiaozhi.on_network_error = self._on_network_error
-        self.xiaozhi.on_incoming_audio = self._on_incoming_audio
-        self.xiaozhi.on_incoming_json = self._on_incoming_json
-        self.xiaozhi.on_audio_channel_opened = self._on_audio_channel_opened
-        self.xiaozhi.on_audio_channel_closed = self._on_audio_channel_closed
-
-        # Connect to XiaoZhi server (creates protocol with server_sample_rate)
+        """Initialize XiaoZhi connection and audio."""
         self.device_state = DeviceState.CONNECTING
         await self.xiaozhi.connect()
-
-        # Initialize audio codec after connect so protocol params are available
-        self._init_audio()
-
-    def _init_audio(self):
-        """Initialize audio codec."""
-        if not self._enable_xiaozhi:
-            return
-        try:
-            from core.services.audio.codec import AudioCodec
-
-            self.audio_codec = AudioCodec()
-            if self.xiaozhi:
-                self.xiaozhi.set_audio_codec(self.audio_codec)
-        except Exception as e:
-            self.alert("Error", f"Failed to initialize audio: {e}")
-
-        # Only start audio trigger if using XiaoZhi mode
-        if self._enable_xiaozhi:
-            threading.Thread(target=self._audio_input_trigger, daemon=True).start()
+        self.xiaozhi.init_audio()
 
     def _main_loop(self):
         """Main application loop."""
@@ -247,7 +210,8 @@ class MainApp:
                     event.clear()
 
                     if event_type == EventType.AUDIO_INPUT_READY_EVENT:
-                        self._handle_input_audio()
+                        if self.xiaozhi:
+                            self.xiaozhi.handle_input_audio()
                     elif event_type == EventType.SCHEDULE_EVENT:
                         self._process_scheduled_tasks()
 
@@ -276,134 +240,7 @@ class MainApp:
             self.main_tasks.append(callback)
         self.events[EventType.SCHEDULE_EVENT].set()
 
-    def _handle_input_audio(self):
-        """Handle audio input."""
-        if self.device_state != DeviceState.LISTENING:
-            return
-
-        encoded_data = self.audio_codec.read_audio()
-        if encoded_data and self.xiaozhi.is_connected():
-            asyncio.run_coroutine_threadsafe(
-                self.xiaozhi.send_audio(encoded_data), self.loop
-            )
-
-    def _audio_input_trigger(self):
-        """Trigger audio input event."""
-        while self.running:
-            if self.audio_codec and self.audio_codec.input_stream.is_active():
-                self.events[EventType.AUDIO_INPUT_READY_EVENT].set()
-            time.sleep(0.01)
-
-    # Callbacks from XiaoZhi
-    def _on_network_error(self, message):
-        """Handle network error from XiaoZhi."""
-        self.set_device_state(DeviceState.IDLE)
-        if self.device_state != DeviceState.CONNECTING:
-            self.set_device_state(DeviceState.IDLE)
-            if self.xiaozhi:
-                asyncio.run_coroutine_threadsafe(
-                    self.xiaozhi.disconnect(), self.loop
-                )
-
-    def _on_incoming_audio(self, data):
-        """Handle incoming audio from XiaoZhi."""
-        if self.device_state == DeviceState.SPEAKING:
-            self.audio_codec.write_audio(data)
-
-    def _on_incoming_json(self, json_data):
-        """Handle incoming JSON from XiaoZhi."""
-        try:
-            if not json_data:
-                return
-
-            data = json.loads(json_data) if isinstance(json_data, str) else json_data
-            msg_type = data.get("type", "")
-
-            if msg_type == "tts":
-                self._handle_tts_message(data)
-            elif msg_type == "stt":
-                self._handle_stt_message(data)
-            elif msg_type == "llm":
-                self._handle_llm_message(data)
-        except Exception as exc:
-            logger.error(
-                f"[MainApp] Failed to handle incoming json: {type(exc).__name__}: {exc}"
-            )
-
-    def _handle_tts_message(self, data):
-        """Handle TTS message."""
-        state = data.get("state", "")
-        if state == "start":
-            EventManager.on_tts_start(data.get("session_id"))
-            self.schedule(lambda: self._handle_tts_start())
-        elif state == "stop":
-            EventManager.on_tts_end(data.get("session_id"))
-            self.schedule(lambda: self._handle_tts_stop())
-        elif state == "sentence_start":
-            text = data.get("text", "")
-            if text:
-                logger.ai_response(text, module="XiaoZhi")
-                self.schedule(lambda: self.set_chat_message("assistant", text))
-
-    def _handle_tts_start(self):
-        """Handle TTS start."""
-        if self.device_state in [DeviceState.IDLE, DeviceState.LISTENING]:
-            self.set_device_state(DeviceState.SPEAKING)
-
-    def _handle_tts_stop(self):
-        """Handle TTS stop."""
-        pass
-
-    def _handle_stt_message(self, data):
-        """Handle STT message."""
-        text = data.get("text", "")
-        if text:
-            logger.user_speech(text, module="XiaoZhi")
-            self.schedule(lambda: self.set_chat_message("user", text))
-
-    def _handle_llm_message(self, data):
-        """Handle LLM message."""
-        emotion = data.get("emotion", "")
-        if emotion:
-            self.schedule(lambda: self.set_emotion(emotion))
-
-    def _on_audio_channel_opened(self):
-        """Handle audio channel opened."""
-        self.set_device_state(DeviceState.IDLE)
-
-    def _on_audio_channel_closed(self):
-        """Handle audio channel closed."""
-        self.set_device_state(DeviceState.IDLE)
-        if self.audio_codec:
-            self.audio_codec.stop_streams()
-
-    # Device state management
-    def set_device_state(self, state):
-        """Set device state."""
-        self.device_state = state
-
-        if self._enable_xiaozhi:
-            from core.services.audio.vad import VAD
-            VAD.pause()
-        if self.audio_codec:
-            self.audio_codec.stop_streams()
-
-        if state == DeviceState.IDLE:
-            pass
-        elif state == DeviceState.CONNECTING:
-            pass
-        elif state == DeviceState.LISTENING:
-            if self.audio_codec:
-                if self.audio_codec.output_stream.is_active():
-                    self.audio_codec.output_stream.stop_stream()
-                if not self.audio_codec.input_stream.is_active():
-                    self.audio_codec.input_stream.start_stream()
-        elif state == DeviceState.SPEAKING:
-            if self.audio_codec:
-                if self.audio_codec.input_stream.is_active():
-                    self.audio_codec.input_stream.stop_stream()
-                if not self.audio_codec.output_stream.is_active():
-                    self.audio_codec.output_stream.start_stream()
+    # State management
 
     def set_chat_message(self, role, message):
         """Set chat message."""
@@ -413,67 +250,19 @@ class MainApp:
         """Set emotion."""
         self.current_emotion = emotion
 
-    # User actions
-    def start_listening(self):
-        """Start listening."""
-        self.schedule(self._start_listening_impl)
-
-    def _start_listening_impl(self):
-        """Start listening implementation."""
-        if not self.xiaozhi:
-            return
-
-        self.set_device_state(DeviceState.IDLE)
-        asyncio.run_coroutine_threadsafe(
-            self.xiaozhi.send_abort_speaking(AbortReason.ABORT),
-            self.loop,
-        )
-        from core.services.protocols.typing import ListeningMode
-        asyncio.run_coroutine_threadsafe(
-            self.xiaozhi.send_start_listening(ListeningMode.MANUAL), self.loop
-        )
-        self.set_device_state(DeviceState.LISTENING)
-
-    def stop_listening(self):
-        """Stop listening."""
-        self.schedule(self._stop_listening_impl)
-
-    def _stop_listening_impl(self):
-        """Stop listening implementation."""
-        if not self.xiaozhi:
-            return
-        asyncio.run_coroutine_threadsafe(
-            self.xiaozhi.send_stop_listening(), self.loop
-        )
-        self.set_device_state(DeviceState.IDLE)
-
-    def abort_speaking(self, reason):
-        """Abort speaking."""
-        if not self.xiaozhi:
-            return
-        self.set_device_state(DeviceState.IDLE)
-        asyncio.run_coroutine_threadsafe(
-            self.xiaozhi.send_abort_speaking(AbortReason.ABORT),
-            self.loop,
-        )
-
     def alert(self, title, message):
         """Show alert."""
         logger.warning(f"[Alert] {title}: {message}")
 
     # Shutdown
+
     def shutdown(self):
         """Shutdown the application."""
         self.shutdown_requested = True
         self.running = False
 
-        if self.audio_codec:
-            self.audio_codec.close()
-
         if self.xiaozhi:
-            asyncio.run_coroutine_threadsafe(
-                self.xiaozhi.disconnect(), self.loop
-            )
+            self.xiaozhi.shutdown()
 
         if self.api_server:
             asyncio.run_coroutine_threadsafe(
@@ -496,6 +285,7 @@ class MainApp:
             self.config_watch_thread.join(timeout=1.0)
 
     # Public API
+
     async def send_text(self, text):
         """Send text to XiaoZhi."""
         if self.xiaozhi and self.xiaozhi.is_connected():
