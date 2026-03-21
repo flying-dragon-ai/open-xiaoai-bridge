@@ -557,14 +557,13 @@ class OpenClawManager:
 
         try:
             await asyncio.wait_for(event, timeout=cls._response_timeout)
-            response_text = cls._response_texts.pop(run_id, "")
-            cls._response_events.pop(run_id, None)
-            return response_text or None
+            return cls._response_texts.pop(run_id, "") or None
         except asyncio.TimeoutError:
             logger.warning(f"[OpenClaw] Timeout waiting for response (runId: {run_id})")
+            return None
+        finally:
             cls._response_events.pop(run_id, None)
             cls._response_texts.pop(run_id, None)
-            return None
 
     @classmethod
     async def _request(cls, method: str, params=None, timeout: float = 30):
@@ -836,7 +835,7 @@ class OpenClawManager:
                     if phase == "end":
                         # Agent run completed
                         response_text = cls._response_texts.get(run_id, "")
-                        if run_id and response_text:
+                        if run_id and response_text and run_id in cls._response_events:
                             logger.ai_response(response_text, module="OpenClaw")
                         cls._signal_response_ready(run_id)
 
