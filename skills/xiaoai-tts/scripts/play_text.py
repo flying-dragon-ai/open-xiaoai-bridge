@@ -37,6 +37,8 @@ def main():
     parser.add_argument("text", help="要播放的文字内容")
     parser.add_argument("--blocking", action="store_true", 
                         help="阻塞等待播放完成（默认非阻塞）")
+    parser.add_argument("--no-blocking", action="store_true",
+                        help="非阻塞模式（默认）")
     parser.add_argument("--timeout", type=int, default=60000,
                         help="超时时间（毫秒，默认 60000）")
     

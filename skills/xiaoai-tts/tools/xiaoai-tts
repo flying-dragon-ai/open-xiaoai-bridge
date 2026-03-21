@@ -53,8 +53,8 @@ def main():
     # tts 命令 - 优先 Doubao，失败回退 text
     tts_parser = subparsers.add_parser('tts', help='语音播报（优先 Doubao TTS，失败自动回退小爱 TTS）')
     tts_parser.add_argument('content', help='要播放的文字内容')
-    tts_parser.add_argument('--speaker', '-s', default='zh_female_vv_uranus_bigtts', 
-                            help='音色名称（默认: zh_female_vv_uranus_bigtts）')
+    tts_parser.add_argument('--speaker', '-s', default='', 
+                            help='音色名称（默认: 服务端默认')
     tts_parser.add_argument('--speed', type=float, default=1.0, help='语速（0.8-2.0，默认: 1.0）')
     tts_parser.add_argument('--emotion', '-e', help='情感（仅多情感音色支持）')
     tts_parser.add_argument('--mood', '-m', help='语气/情感别名（同 --emotion）')
@@ -97,7 +97,7 @@ def main():
     if args.command == 'tts':
         # 优先尝试 Doubao TTS
         cmd_args = [args.content]
-        if args.speaker != 'zh_female_vv_uranus_bigtts':
+        if args.speaker != '':
             cmd_args.extend(['--speaker', args.speaker])
         if args.speed != 1.0:
             cmd_args.extend(['--speed', str(args.speed)])

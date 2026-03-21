@@ -11,7 +11,7 @@ from api_client import api_request
 
 
 # 默认音色（2.0 高质量）
-DEFAULT_SPEAKER = "zh_female_vv_uranus_bigtts"
+DEFAULT_SPEAKER = None
 
 
 def tts_doubao(text, speaker=None, speed=1.0, emotion=None, 
