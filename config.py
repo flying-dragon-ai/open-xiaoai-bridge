@@ -197,6 +197,13 @@ APP_CONFIG = {
         "tts_speaker": "xiaoai",  # "xiaoai" = 小爱原生 TTS；填豆包音色 ID 则用豆包 TTS；不设置则使用 tts.doubao.default_speaker
         "response_timeout": 120,  # 等待 OpenClaw agent 响应的超时时间（秒）
         "exit_keywords": ["退出", "停止", "再见"],  # 退出连续对话的关键词
-        "rule_prompt": "注意：将结果处理成纯文字版，不要返回任何 markdown 格式，也不要包含任何代码块，并将字数控制在300字以内" # 每次发送消息时自动追加的指令后缀（约束规范）
+        # rule_prompt: 用于「自动播放」和「连续对话」场景
+        #   - send_to_openclaw_and_play_reply() 会自动追加
+        #   - OpenClawConversationController 会自动追加
+        "rule_prompt": "注意：将结果处理成纯文字版，不要返回任何 markdown 格式，也不要包含任何代码块，并将字数控制在300字以内",
+        # rule_prompt_for_skill: 用于「Agent 自主播报」场景（方式三）
+        #   - send_to_openclaw() 会自动追加
+        #   - 告诉 Agent 需要调用 xiaoai-tts skill 来播报，因为服务端不会自动播放
+        "rule_prompt_for_skill": "注意：这条消息是主人通过小爱音箱发送的，他看不到你回复的文字，调用 `xiaoai-tts` skill 播报出来。字数控制在300字以内"
     },
 }

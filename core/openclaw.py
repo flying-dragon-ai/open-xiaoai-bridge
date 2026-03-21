@@ -86,6 +86,7 @@ class OpenClawManager:
     _response_timeout = 120  # seconds to wait for agent response (configurable)
     _ack_timeout = 60  # seconds to wait for request accepted response
     _rule_prompt = ""  # prompt to append to every message sent to OpenClaw (auto-prepends newline)
+    _rule_prompt_for_skill = ""  # prompt for skill-based autonomous playback
 
     _identity_path = os.path.expanduser("~/.openclaw/identity/device.json")
     _spki_ed25519_prefix = bytes.fromhex("302a300506032b6570032100")
@@ -129,6 +130,7 @@ class OpenClawManager:
         cfg_ack_timeout = config.get("ack_timeout", 30)
         cfg_response_timeout = config.get("response_timeout", 120)
         cfg_rule_prompt = config.get("rule_prompt", "")
+        cfg_rule_prompt_for_skill = config.get("rule_prompt_for_skill", "")
 
         # Enable/disable: parameter > environment variable > default (False)
         if enabled is not None:
@@ -146,6 +148,7 @@ class OpenClawManager:
         cls._ack_timeout = cfg_ack_timeout
         cls._response_timeout = cfg_response_timeout
         cls._rule_prompt = cfg_rule_prompt
+        cls._rule_prompt_for_skill = cfg_rule_prompt_for_skill
 
         cls._url = cfg_url
         cls._token = cfg_token
@@ -497,10 +500,7 @@ class OpenClawManager:
 
         try:
             idem = str(uuid.uuid4())
-            full_text = text
-            if cls._rule_prompt:
-                full_text = text + "\n" + cls._rule_prompt
-            logger.user_speech(full_text, module=f"OpenClaw({cls._session_key})")
+            logger.user_speech(text, module=f"OpenClaw({cls._session_key})")
 
             loop = asyncio.get_running_loop()
             response_waiter = loop.create_future()
@@ -509,7 +509,7 @@ class OpenClawManager:
             logger.debug(f"[OpenClaw] Tracking idem={idem}")
 
             request_params = {
-                "message": full_text,
+                "message": text,
                 "sessionKey": cls._session_key,
                 "deliver": False,
                 "idempotencyKey": idem,

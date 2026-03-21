@@ -158,7 +158,10 @@ class OpenClawConversationController:
                 return "exit"
 
         # 4. Send to OpenClaw and wait for response
-        response = await OpenClawManager.send(text, wait_response=True)
+        full_text = text
+        if OpenClawManager._rule_prompt:
+            full_text = text + "\n" + OpenClawManager._rule_prompt
+        response = await OpenClawManager.send(full_text, wait_response=True)
         if response is None:
             logger.warning("No response from OpenClaw", module="OpenClaw Conv")
             speaker = get_speaker()

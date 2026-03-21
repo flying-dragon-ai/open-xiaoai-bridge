@@ -292,12 +292,17 @@ class MainApp:
             await self.xiaozhi.send_text(text)
 
     async def send_to_openclaw(self, text: str, wait_response: bool = False) -> str | None:
-        """Send message to OpenClaw.
+        """Send message to OpenClaw (for skill-based autonomous playback).
 
+        Automatically appends rule_prompt_for_skill if configured.
         Returns run_id or response text on success, None on failure.
         """
         try:
-            return await OpenClawManager.send(text, wait_response=wait_response)
+            from core.openclaw import OpenClawManager
+            full_text = text
+            if OpenClawManager._rule_prompt_for_skill:
+                full_text = text + "\n" + OpenClawManager._rule_prompt_for_skill
+            return await OpenClawManager.send(full_text, wait_response=wait_response)
         except Exception as e:
             logger.error(f"[MainApp] 发送消息到 OpenClaw 失败: {type(e).__name__}: {e}")
             return None
@@ -305,10 +310,15 @@ class MainApp:
     async def send_to_openclaw_and_play_reply(self, text: str, wait_response: bool = False) -> str | None:
         """Send message to OpenClaw and play the reply via TTS.
 
+        Automatically appends rule_prompt if configured.
         Returns run_id or response text on success, None on failure.
         """
         try:
-            return await OpenClawManager.send_and_play_reply(text, wait_response=wait_response)
+            from core.openclaw import OpenClawManager
+            full_text = text
+            if OpenClawManager._rule_prompt:
+                full_text = text + "\n" + OpenClawManager._rule_prompt
+            return await OpenClawManager.send_and_play_reply(full_text, wait_response=wait_response)
         except Exception as e:
             logger.error(f"[MainApp] 发送消息到 OpenClaw 失败: {type(e).__name__}: {e}")
             return None
