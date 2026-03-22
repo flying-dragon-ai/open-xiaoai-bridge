@@ -316,7 +316,9 @@ curl -X POST http://localhost:9092/api/interrupt
 
 通过 [OpenClaw](https://github.com/openclaw/openclaw) 将小爱音箱变成你的 AI Agent 终端。
 
-### 🎯 三种交互方式
+设置 `OPENCLAW_ENABLED=1` 启用
+
+### 🎯 交互方式
 
 #### 🎙️ 方式一：连续对话
 
@@ -489,10 +491,6 @@ async def after_wakeup(speaker, source=None, session_key=None):
 
 不需要可以留空或不设置。
 
-### 🔧 完整配置
-
-完整配置请参考 [config.py](config.py)。
-
 ### 🎵 OpenClaw TTS 音色
 
 `openclaw.tts_speaker` 支持两种值：
@@ -513,6 +511,8 @@ async def after_wakeup(speaker, source=None, session_key=None):
 ## 🤖 小智 AI 集成
 
 接入 [xiaozhi-esp32-server](https://github.com/xinnan-tech/xiaozhi-esp32-server)，使用小智 AI 的对话能力。
+
+设置 `XIAOZHI_ENABLE=1` 启用
 
 ### 配置
 
@@ -539,215 +539,223 @@ APP_CONFIG = {
 
 ### 🎙️ 唤醒词与连续对话
 
-**模型文件在哪下载？**\
-从 [releases](https://github.com/coderzc/open-xiaoai-bridge/releases/tag/vad-kws-asr-models) 下载 VAD + KWS + ASR 模型，解压到 `core/models/`。
+1. **模型文件在哪下载？**
 
-Docker 部署需挂载：
+    从 [releases](https://github.com/coderzc/open-xiaoai-bridge/releases/tag/vad-kws-asr-models) 下载 VAD + KWS + ASR 模型，解压到 `core/models/`。
 
-```yaml
-volumes:
-  - ./models:/app/core/models
-```
+    Docker 部署需挂载：
 
-**如何打断 AI 的回答？**\
-直接喊"小爱同学"即可打断小智或 OpenClaw 的回答。
+    ```yaml
+    volumes:
+      - ./models:/app/core/models
+    ```
 
-**话没说完 AI 就开始回答？**\
-调大 `min_silence_duration`：
+2. **如何打断 AI 的回答？**
 
-```python
-APP_CONFIG = {
-    "vad": {
-        "min_silence_duration": 1000,  # 毫秒
-    },
-}
-```
+    直接喊"小爱同学"即可打断小智或 OpenClaw 的回答。
 
-**唤醒词没反应？**
+3. **话没说完 AI 就开始回答？**
 
-- 调低 `vad.threshold`（越小越灵敏，如 `0.05`）
-- 启动后需等约 30s 加载模型
-- 英文唤醒词用空格分开（如 `"open ai"`）
-- 换更易识别的唤醒词
+    调大 `min_silence_duration`：
+
+    ```python
+    APP_CONFIG = {
+        "vad": {
+            "min_silence_duration": 1000,  # 毫秒
+        },
+    }
+    ```
+
+4. **唤醒词没反应？**
+
+    - 调低 `vad.threshold`（越小越灵敏，如 `0.05`）
+    - 启动后需等约 30s 加载模型
+    - 英文唤醒词用空格分开（如 `"open ai"`）
+    - 换更易识别的唤醒词
 
 ### 🦞 OpenClaw
 
-**首次连接出现 pairing required？**\
-正常流程。保持服务在线，到 OpenClaw UI 批准设备：**Nodes → Devices → Approve**。
+1. **首次连接出现 pairing required？**
 
-**容器重建后需要重新配对？**\
-Docker 部署时挂载 `identity_path` 目录为持久化卷，否则设备身份丢失需重新配对：
+    正常流程。保持服务在线，到 OpenClaw UI 批准设备：**Nodes → Devices → Approve**。
 
-```yaml
-# docker-compose.yml
-volumes:
-  - ./openclaw:/app/openclaw
-```
+2. **容器重建后需要重新配对？**
 
-**session\_key 是什么？**
-告诉 Gateway 把消息路由到哪个 Agent Session，格式为冒号分隔的层级路径：
+    Docker 部署时挂载 `identity_path` 目录为持久化卷，否则设备身份丢失需重新配对：
 
-```
-agent:<agentId>:<rest>
-```
+    ```yaml
+    # docker-compose.yml
+    volumes:
+      - ./openclaw:/app/openclaw
+    ```
 
-| 字段          | 说明                                 | 示例                          |
-| ----------- | ---------------------------------- | --------------------------- |
-| `agent`     | 固定前缀                               | `agent`                     |
-| `<agentId>` | OpenClaw 中配置的 Agent ID（默认为 `main`） | `main`、`assistant`          |
-| `<rest>`    | 会话标识，可自由命名，用于区分不同来源/场景             | `home`、`open-xiaoai-bridge` |
+3. **session\_key 是什么？**
 
-常见格式举例：
+    告诉 Gateway 把消息路由到哪个 Agent Session，格式为冒号分隔的层级路径：
 
-```
-agent:main:open-xiaoai-bridge          # 默认值（本项目）
-agent:main:main                        # OpenClaw 原生默认主会话
-agent:assistant:open-xiaoai-bridge     # 指定其他 Agent
-agent:main:direct:alice                # 按用户隔离
-```
+    ```
+    agent:<agentId>:<rest>
+    ```
 
-**如何在运行时动态切换 session\_key？**
+    | 字段          | 说明                                 | 示例                          |
+    | ----------- | ---------------------------------- | --------------------------- |
+    | `agent`     | 固定前缀                               | `agent`                     |
+    | `<agentId>` | OpenClaw 中配置的 Agent ID（默认为 `main`） | `main`、`assistant`          |
+    | `<rest>`    | 会话标识，可自由命名，用于区分不同来源/场景             | `home`、`open-xiaoai-bridge` |
 
-每次唤醒触发 `before_wakeup` 之前，框架会自动将 `session_key` **重置为配置文件中的默认值**。因此：
+    常见格式举例：
 
-- 在 `before_wakeup` 中调用 `app.set_openclaw_session_key()` → 本次唤醒使用指定的 session
-- 不调用 → 自动使用配置文件中的 `openclaw.session_key`，不会沿用上一次的值
+    ```
+    agent:main:open-xiaoai-bridge          # 默认值（本项目）
+    agent:main:main                        # OpenClaw 原生默认主会话
+    agent:assistant:open-xiaoai-bridge     # 指定其他 Agent
+    agent:main:direct:alice                # 按用户隔离
+    ```
 
-这意味着你只需要在需要切换的路径里调用一次，不用担心"忘记重置"的问题。
+4. **如何在运行时动态切换 session\_key？**
 
-常见使用场景：
+    每次唤醒触发 `before_wakeup` 之前，框架会自动将 `session_key` **重置为配置文件中的默认值**。因此：
 
-**场景一：按唤醒词路由到不同 Agent**
+    - 在 `before_wakeup` 中调用 `app.set_openclaw_session_key()` → 本次唤醒使用指定的 session
+    - 不调用 → 自动使用配置文件中的 `openclaw.session_key`，不会沿用上一次的值
 
-说"你好龙虾"唤醒龙虾 Agent，说"你好小美"唤醒小美 Agent：
+    这意味着你只需要在需要切换的路径里调用一次，不用担心"忘记重置"的问题。
 
-```python
-AGENT_SESSIONS = {
-    "龙虾": "agent:assistant:open-xiaoai-bridge",
-    "小美": "agent:xiaomei:open-xiaoai-bridge",
-    "管家": "agent:butler:open-xiaoai-bridge",
-}
+    常见使用场景：
 
-async def before_wakeup(speaker, text, source, app):
-    if source == "kws":
-        for keyword, session_key in AGENT_SESSIONS.items():
-            if keyword in text:
-                app.set_openclaw_session_key(session_key)
-                await speaker.play(text=f"{keyword}来了")
-                return "openclaw"
-```
+    **场景一：按唤醒词路由到不同 Agent**
 
-**场景二：每次唤醒生成独立 Session**
+    说"你好龙虾"唤醒龙虾 Agent，说"你好小美"唤醒小美 Agent：
 
-每次对话互相隔离，适合以下情况：
+    ```python
+    AGENT_SESSIONS = {
+        "龙虾": "agent:assistant:open-xiaoai-bridge",
+        "小美": "agent:xiaomei:open-xiaoai-bridge",
+        "管家": "agent:butler:open-xiaoai-bridge",
+    }
 
-- "提问 → 回答"式交互，不需要 Agent 记住上下文
-- 长期使用同一 Session 导致 Agent 上下文堆积过长，影响响应质量和速度
+    async def before_wakeup(speaker, text, source, app):
+        if source == "kws":
+            for keyword, session_key in AGENT_SESSIONS.items():
+                if keyword in text:
+                    app.set_openclaw_session_key(session_key)
+                    await speaker.play(text=f"{keyword}来了")
+                    return "openclaw"
+    ```
 
-```python
-import uuid
+    **场景二：每次唤醒生成独立 Session**
 
-def new_session_key():
-    return f"agent:main:session-{uuid.uuid4().hex[:8]}"
+    每次对话互相隔离，适合以下情况：
 
-async def before_wakeup(speaker, text, source, app):
-    if source == "kws" and "龙虾" in text:
-        app.set_openclaw_session_key(new_session_key())
-        await speaker.play(text="龙虾来了")
-        return "openclaw"
-```
+    - "提问 → 回答"式交互，不需要 Agent 记住上下文
+    - 长期使用同一 Session 导致 Agent 上下文堆积过长，影响响应质量和速度
 
-**send\_to\_openclaw() 的返回值是什么？**
+    ```python
+    import uuid
 
-- `send_to_openclaw(text)` → 成功返回 `run_id`（str），失败返回 `None`
-- `send_to_openclaw(text, wait_response=True)` → 成功返回回复文本，超时/失败返回 `None`
-- `send_to_openclaw_and_play_reply(text)` → 同上，但会自动 TTS 播放回复
+    def new_session_key():
+        return f"agent:main:session-{uuid.uuid4().hex[:8]}"
+
+    async def before_wakeup(speaker, text, source, app):
+        if source == "kws" and "龙虾" in text:
+            app.set_openclaw_session_key(new_session_key())
+            await speaker.play(text="龙虾来了")
+            return "openclaw"
+    ```
+
+5. **send\_to\_openclaw() 的返回值是什么？**
+
+    - `send_to_openclaw(text)` → 成功返回 `run_id`（str），失败返回 `None`
+    - `send_to_openclaw(text, wait_response=True)` → 成功返回回复文本，超时/失败返回 `None`
+    - `send_to_openclaw_and_play_reply(text)` → 同上，但会自动 TTS 播放回复
 
 ### 🤖 小智 AI
 
-**第一次运行提示验证码绑定设备？**\
-打开小智 AI [管理后台](https://xiaozhi.me/)，根据提示创建 Agent 绑定设备。验证码会在终端打印或写入 `config.py`：
+1. **第一次运行提示验证码绑定设备？**
 
-```python
-APP_CONFIG = {
-    "xiaozhi": {
-        "VERIFICATION_CODE": "首次登录时，验证码会在这里更新",
-    },
-}
-```
+    打开小智 AI [管理后台](https://xiaozhi.me/)，根据提示创建 Agent 绑定设备。验证码会在终端打印或写入 `config.py`：
 
-绑定成功后可能需要重启应用。
+    ```python
+    APP_CONFIG = {
+        "xiaozhi": {
+            "VERIFICATION_CODE": "首次登录时，验证码会在这里更新",
+        },
+    }
+    ```
 
-**怎样使用自己部署的 xiaozhi-esp32-server？**\
-修改 `config.py` 中的接口地址：
+    绑定成功后可能需要重启应用。
 
-```python
-APP_CONFIG = {
-    "xiaozhi": {
-        "OTA_URL": "https://your-server/xiaozhi/ota/",
-        "WEBSOCKET_URL": "wss://your-server/xiaozhi/v1/",
-    },
-}
-```
+2. **怎样使用自己部署的 xiaozhi-esp32-server？**
+
+    修改 `config.py` 中的接口地址：
+
+    ```python
+    APP_CONFIG = {
+        "xiaozhi": {
+            "OTA_URL": "https://your-server/xiaozhi/ota/",
+            "WEBSOCKET_URL": "wss://your-server/xiaozhi/v1/",
+        },
+    }
+    ```
 
 ### 🎵 豆包 TTS
 
-**如何配置豆包 TTS？**
+1. **如何配置豆包 TTS？**
 
-1. 开通[火山引擎语音合成服务](https://www.volcengine.com/docs/6561/1871062)，获取 App ID 和 Access Key（[接入文档](https://www.volcengine.com/docs/6561/1598757?lang=zh)）
-2. 填入配置：
+    1. 开通[火山引擎语音合成服务](https://www.volcengine.com/docs/6561/1871062)，获取 App ID 和 Access Key（[接入文档](https://www.volcengine.com/docs/6561/1598757?lang=zh)）
+    2. 填入配置：
 
-```python
-"tts": {
-    "doubao": {
-        "app_id": "你的 App ID",
-        "access_key": "你的 Access Key",
-        "default_speaker": "zh_female_cancan_mars_bigtts",  # 默认音色，可选列表见下方
+    ```python
+    "tts": {
+        "doubao": {
+            "app_id": "你的 App ID",
+            "access_key": "你的 Access Key",
+            "default_speaker": "zh_female_cancan_mars_bigtts",  # 默认音色，可选列表见下方
+        }
     }
-}
-```
+    ```
 
-音色列表：[火山引擎音色库](https://www.volcengine.com/docs/6561/1257544?lang=zh)
+    音色列表：[火山引擎音色库](https://www.volcengine.com/docs/6561/1257544?lang=zh)
 
-**如何使用声音复刻？**
+2. **如何使用声音复刻？**
 
-1. 在[火山引擎声音复刻控制台](https://console.volcengine.com/speech/new/experience/clone)上传 10-30 秒音频
-2. 训练完成后到[音色库](https://console.volcengine.com/speech/new/voices?projectName=default)复制音色 ID（格式 `S_xxxxxxxx`）
-3. **重要**：确保复刻音色与 `tts.doubao.app_id` 属于**同一个火山引擎项目**，否则无法使用
-4. 填入配置：
+    1. 在[火山引擎声音复刻控制台](https://console.volcengine.com/speech/new/experience/clone)上传 10-30 秒音频
+    2. 训练完成后到[音色库](https://console.volcengine.com/speech/new/voices?projectName=default)复制音色 ID（格式 `S_xxxxxxxx`）
+    3. **重要**：确保复刻音色与 `tts.doubao.app_id` 属于**同一个火山引擎项目**，否则无法使用
+    4. 填入配置：
 
-```python
-"tts": {
-    "doubao": {
-        "default_speaker": "S_xxxxxxxx",
+    ```python
+    "tts": {
+        "doubao": {
+            "default_speaker": "S_xxxxxxxx",
+        }
     }
-}
-```
+    ```
 
-**支持流式播放吗？怎么配置？**
+3. **支持流式播放吗？怎么配置？**
 
-支持。推荐配置：
+    支持。推荐配置：
 
-```python
-"tts": {
-    "doubao": {
-        "stream": True,           # 流式播放，首音延迟更低
-        "audio_format": "pcm",    # 局域网推荐，首音更快
-        # "audio_format": "auto", # 短文本 PCM，长文本 MP3
+    ```python
+    "tts": {
+        "doubao": {
+            "stream": True,           # 流式播放，首音延迟更低
+            "audio_format": "pcm",    # 局域网推荐，首音更快
+            # "audio_format": "auto", # 短文本 PCM，长文本 MP3
+        }
     }
-}
-```
+    ```
 
-- `pcm`：首音快，流式稳定，长文本总耗时可能更高
-- `mp3`：传输效率高，长文本更早结束
-- `auto`：折中方案，按文本长度自动选择
+    - `pcm`：首音快，流式稳定，长文本总耗时可能更高
+    - `mp3`：传输效率高，长文本更早结束
+    - `auto`：折中方案，按文本长度自动选择
 
-冒烟测试（无需音箱，验证 TTS 是否正常）：
+    冒烟测试（无需音箱，验证 TTS 是否正常）：
 
-```bash
-python3 tests/test_tts_stream.py                                           # 测试流式 TTS 连通性
-python3 tests/test_tts_latency.py --formats mp3,pcm --rounds 3 --repeat 8  # 对比 mp3/pcm 延迟
-```
+    ```bash
+    python3 tests/test_tts_stream.py                                           # 测试流式 TTS 连通性
+    python3 tests/test_tts_latency.py --formats mp3,pcm --rounds 3 --repeat 8  # 对比 mp3/pcm 延迟
+    ```
 
 ***
 
@@ -755,7 +763,6 @@ python3 tests/test_tts_latency.py --formats mp3,pcm --rounds 3 --repeat 8  # 对
 
 | 资源              | 链接                                                                                                                                                                                                                                                       |
 | --------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 📁 项目主页         | [github.com/coderzc/open-xiaoai-bridge](https://github.com/coderzc/open-xiaoai-bridge)                                                                                                                                                                   |
 | 🔧 刷机教程         | [刷机教程](https://github.com/idootop/open-xiaoai/blob/main/docs/flash.md)                                                                                                                                                                                   |
 | 🛠️ Client 端安装  | [Client 端安装](https://github.com/idootop/open-xiaoai/blob/main/packages/client-rust/README.md)                                                                                                                                                            |
 | 🎵 Opus 安装说明    | [Opus 安装说明](https://github.com/huangjunsen0406/py-xiaozhi/blob/3bfd2887244c510a13912c1d63263ae564a941e9/documents/docs/guide/01_%E7%B3%BB%E7%BB%9F%E4%BE%9D%E8%B5%96%E5%AE%89%E8%A3%85.md#2-opus-%E9%9F%B3%E9%A2%91%E7%BC%96%E8%A7%A3%E7%A0%81%E5%99%A8) |

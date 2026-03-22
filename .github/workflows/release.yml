@@ -67,6 +67,11 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
+      - name: Update docker-compose.yml with version tag
+        run: |
+          sed -i 's|image: ghcr.io/coderzc/open-xiaoai-bridge:latest|image: ghcr.io/coderzc/open-xiaoai-bridge:${{ steps.version.outputs.VERSION }}|g' docker-compose.yml
+          cat docker-compose.yml
+
       - name: Create Release
         if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
