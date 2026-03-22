@@ -661,7 +661,6 @@ dependencies = [
     { name = "maturin" },
     { name = "numpy" },
     { name = "onnxruntime" },
-    { name = "opuslib-next" },
     { name = "pyaudio" },
     { name = "pypinyin" },
     { name = "python-socks" },
@@ -681,7 +680,6 @@ requires-dist = [
     { name = "maturin", specifier = ">=1.8.3" },
     { name = "numpy", specifier = ">=2.2.3" },
     { name = "onnxruntime", specifier = "==1.23.2" },
-    { name = "opuslib-next", specifier = ">=1.1.4" },
     { name = "pyaudio", specifier = ">=0.2.14" },
     { name = "pypinyin", specifier = ">=0.54.0" },
     { name = "python-socks", specifier = ">=2.8.1" },
@@ -691,15 +689,6 @@ requires-dist = [
     { name = "sherpa-onnx", specifier = ">=1.12.26" },
     { name = "soundfile", specifier = ">=0.13.0" },
     { name = "websockets", specifier = ">=15.0.1" },
-]
-
-[[package]]
-name = "opuslib-next"
-version = "1.1.5"
-source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/67/2c/bef1c39553ee3bd642fc63a91f9cc3aed5de22c30515414d9d236630b204/opuslib_next-1.1.5.tar.gz", hash = "sha256:6aec1015f25f799794d217601c74ea0fae8fd65d752578cb163fd2338ed075ce", size = 9432 }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/90/38/94d7424e12e354459d96ff14bd33fb995b6136dbb8f94d84e1396b3d540e/opuslib_next-1.1.5-py3-none-any.whl", hash = "sha256:9feca546dffc8da74c13d5762b4470a8c7a8f7520e3cf7f7c00751e53223d00a", size = 13489 },
 ]
 
 [[package]]

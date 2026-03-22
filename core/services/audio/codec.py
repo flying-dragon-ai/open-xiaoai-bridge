@@ -1,4 +1,4 @@
-import opuslib_next as opuslib
+import open_xiaoai_server
 
 from core.ref import (
     get_speech_frames,
@@ -61,15 +61,14 @@ class AudioCodec:
         )
 
         # 初始化Opus编码器
-        self.opus_encoder = opuslib.Encoder(
-            fs=AudioConfig.SAMPLE_RATE,
+        self.opus_encoder = open_xiaoai_server.OpusEncoder(
+            sample_rate=AudioConfig.SAMPLE_RATE,
             channels=AudioConfig.CHANNELS,
-            application=opuslib.APPLICATION_AUDIO,
         )
 
         # 初始化Opus解码器
-        self.opus_decoder = opuslib.Decoder(
-            fs=server_sample_rate,
+        self.opus_decoder = open_xiaoai_server.OpusDecoder(
+            sample_rate=server_sample_rate,
             channels=AudioConfig.CHANNELS,
         )
         self.temp_frames = bytes([])

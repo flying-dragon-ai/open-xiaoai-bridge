@@ -61,8 +61,8 @@ docker compose up -d
 git clone https://github.com/coderzc/open-xiaoai-bridge.git
 cd open-xiaoai-bridge
 
-# 依赖: uv, Rust, Opus 动态库
-# Linux 还需要: pkg-config, patchelf, libssl-dev
+# 依赖: uv, Rust
+# Linux 还需要: pkg-config, patchelf
 
 # 启动（按需设置环境变量）
 API_SERVER_ENABLE=1 XIAOZHI_ENABLE=1 OPENCLAW_ENABLED=1 ./scripts/start.sh
@@ -765,7 +765,6 @@ APP_CONFIG = {
 | --------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | 🔧 刷机教程         | [刷机教程](https://github.com/idootop/open-xiaoai/blob/main/docs/flash.md)                                                                                                                                                                                   |
 | 🛠️ Client 端安装  | [Client 端安装](https://github.com/idootop/open-xiaoai/blob/main/packages/client-rust/README.md)                                                                                                                                                            |
-| 🎵 Opus 安装说明    | [Opus 安装说明](https://github.com/huangjunsen0406/py-xiaozhi/blob/3bfd2887244c510a13912c1d63263ae564a941e9/documents/docs/guide/01_%E7%B3%BB%E7%BB%9F%E4%BE%9D%E8%B5%96%E5%AE%89%E8%A3%85.md#2-opus-%E9%9F%B3%E9%A2%91%E7%BC%96%E8%A7%A3%E7%A0%81%E5%99%A8) |
 | 🎙️ 豆包 TTS 音色列表 | [火山引擎文档](https://www.volcengine.com/docs/6561/1257544)                                                                                                                                                                                                   |
 
 ***

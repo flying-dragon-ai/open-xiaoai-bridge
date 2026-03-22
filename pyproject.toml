@@ -10,7 +10,6 @@ dependencies = [
     "maturin>=1.8.3",
     "numpy>=2.2.3",
     "onnxruntime==1.23.2",
-    "opuslib-next>=1.1.4",
     "pyaudio>=0.2.14",
     "pypinyin>=0.54.0",
     "python-socks>=2.8.1",

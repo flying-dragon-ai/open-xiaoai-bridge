@@ -7,6 +7,7 @@ use serde_json::json;
 use server::AppServer;
 
 pub mod macros;
+pub mod opus;
 pub mod python;
 pub mod server;
 pub mod tts;
@@ -123,6 +124,7 @@ fn open_xiaoai_server(_py: Python, m: Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(start_playing, &m)?)?;
     m.add_function(wrap_pyfunction!(stop_recording, &m)?)?;
     m.add_function(wrap_pyfunction!(start_recording, &m)?)?;
+    crate::opus::init_module(&m)?;
     crate::python::init_module(&m)?;
     crate::tts::init_module(&m)?;
     Ok(())
