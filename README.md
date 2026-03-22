@@ -10,7 +10,9 @@
 
 打破小爱音箱的封闭生态，灵活接入多种 AI 服务，提供 HTTP API 实现远程控制。
 
-[📺 演示视频](https://www.bilibili.com/video/BV1DHcBz1Ex7) · [📖 快速开始](#-快速开始) · [🦞 OpenClaw 集成](#-openclaw-集成) · [🔧 API 文档](#-api-server) · [🐛 常见问题](#-常见问题)
+[📺 演示 ①](https://www.bilibili.com/video/BV1DHcBz1Ex7) · [📺 演示 ②](https://www.bilibili.com/video/BV1UQQSBHEvg)
+
+[📖 快速开始](#-快速开始) · [🦞 OpenClaw 集成](#-openclaw-集成) · [🔧 API 文档](#-api-server) · [🐛 常见问题](#-常见问题)
 
 > 本项目由 [Open-XiaoAI](https://github.com/idootop/open-xiaoai) 的 `examples/xiaozhi/` 演进而来，已成为独立项目。
 
@@ -63,6 +65,11 @@ curl -O https://raw.githubusercontent.com/coderzc/open-xiaoai-bridge/main/docker
 # 按需修改 config.py 和 docker-compose.yml，然后启动
 docker compose up -d
 ```
+
+> **💡 国内镜像加速**：如果拉取镜像太慢，可将 `docker-compose.yml` 中的镜像改为：
+> ```yaml
+> image: ghcr.nju.edu.cn/coderzc/open-xiaoai-bridge:latest
+> ```
 
 `docker-compose.yml` 已包含模型目录挂载：
 
@@ -509,7 +516,7 @@ async def after_wakeup(speaker, source=None, session_key=None):
 | 值          | 效果       | 说明                                                    |
 | ---------- | -------- | ----------------------------------------------------- |
 | `"xiaoai"` | 小爱原生 TTS | 零配置即可使用，音色由设备决定                                       |
-| 豆包音色 ID    | 豆包语音合成   | 需配置 `tts.doubao` 的 `app_id` 和 `access_key`，详见 [TTS 章节](#-tts) |
+| 豆包音色 ID    | 豆包语音合成   | 需配置 `tts.doubao` 的 `app_id` 和 `access_key`，详见 [豆包 TTS 章节](#-豆包-tts) |
 
 ### 🧩 Skills
 
