@@ -78,6 +78,8 @@ class _VAD:
         """恢复VAD检测"""
         self.paused = False
         self.target = target
+        self._reset_state()
+        self.stream.input_bytes.clear()  # discard stale audio data
         self.stream.start_stream()
 
     def _handle_speech_frame(self, frames):

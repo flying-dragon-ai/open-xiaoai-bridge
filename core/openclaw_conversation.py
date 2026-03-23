@@ -103,13 +103,17 @@ class OpenClawConversationController:
 
     async def _conversation_loop(self):
         """Run VAD -> ASR -> OpenClaw -> TTS turns until exit."""
-        vad = get_vad()
 
-        # Play notify sound first for immediate user feedback,
-        # then wait for silence so VAD/ASR starts from a clean state.
+        # Mute mic → play notify → unmute.
+        # _play_notify() blocks for ~740ms (the beep duration), during which
+        # the mic is off and before_wakeup TTS echo naturally fades.
+        # VAD.resume() resets all state (speech_frames, input_bytes),
+        # so speech detection starts clean when listening begins.
+        await self._stop_recording()
+        logger.debug("Recording stopped", module="OpenClaw Conv")
         await self._play_notify()
-        if vad:
-            await self._wait_for_silence(vad)
+        await self._start_recording()
+        logger.debug("Ready to listen", module="OpenClaw Conv")
 
         while self.active:
             result = await self._run_one_turn()
@@ -167,14 +171,15 @@ class OpenClawConversationController:
                 await speaker.play(text="抱歉，我没有收到回复")
             return "continue"
 
-        # 5. Stop recording → TTS → Notify → Wait for silence → Start recording
-        #    Physical mute/unmute prevents echo; VAD silence check ensures
-        #    the speaker has truly gone quiet before we resume listening.
+        # 5. Stop recording → TTS → Notify → Start recording
+        #    Mic is off during TTS and notify, so no echo is captured.
+        #    _play_notify() blocks for ~740ms (the beep duration),
+        #    enough for TTS echo to fade. VAD.resume() resets all state,
+        #    so speech detection starts clean.
         await self._stop_recording()
         await self._play_tts(str(response))
         await self._play_notify()
         await self._start_recording()
-        await self._wait_for_silence(vad)
 
         return "continue"
 
