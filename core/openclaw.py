@@ -74,6 +74,7 @@ class OpenClawManager:
     XIAOAI_TTS_SPEAKER = "xiaoai"  # Special value: use XiaoAI native TTS instead of Doubao
     _enabled = False
     _tts_speaker = None  # Custom speaker for OpenClaw TTS (uses tts.doubao.default_speaker if not set)
+    _agent_tts_speakers: dict[str, str] = {}  # Per-agent speaker overrides
     _tts_speed = 1.0  # TTS speed (0.5-2.0, 1.0 is normal)
     _url = None
     _token = None
@@ -83,6 +84,7 @@ class OpenClawManager:
     # Response tracking for TTS
     _response_events: dict[str, asyncio.Future] = {}
     _response_texts: dict[str, str] = {}
+    _response_tts_speakers: dict[str, str | None] = {}
     _response_timeout = 120  # seconds to wait for agent response (configurable)
     _ack_timeout = 60  # seconds to wait for request accepted response
     _rule_prompt = ""  # prompt to append to every message sent to OpenClaw (auto-prepends newline)
@@ -126,6 +128,7 @@ class OpenClawManager:
         cfg_session = config.get("session_key", "agent:main:open-xiaoai-bridge")
         cfg_identity_path = config.get("identity_path")
         cfg_tts_speaker = config.get("tts_speaker", None)
+        cfg_agent_tts_speakers = config.get("agent_tts_speakers", {})
         cfg_tts_speed = config.get("tts_speed", 1.0)
         cfg_ack_timeout = config.get("ack_timeout", 30)
         cfg_response_timeout = config.get("response_timeout", 120)
@@ -144,6 +147,15 @@ class OpenClawManager:
 
         # TTS config: only from config file
         cls._tts_speaker = cfg_tts_speaker
+        cls._agent_tts_speakers = (
+            {
+                str(key): str(value)
+                for key, value in cfg_agent_tts_speakers.items()
+                if key and value
+            }
+            if isinstance(cfg_agent_tts_speakers, dict)
+            else {}
+        )
         cls._tts_speed = cfg_tts_speed
         cls._ack_timeout = cfg_ack_timeout
         cls._response_timeout = cfg_response_timeout
@@ -195,6 +207,23 @@ class OpenClawManager:
         """
         logger.info(f"[OpenClaw] Session key updated: {cls._session_key!r} → {session_key!r}")
         cls._session_key = session_key
+
+    @classmethod
+    def get_tts_speaker_for_session_key(cls, session_key: str | None = None) -> str | None:
+        """Resolve TTS speaker for the agentId in a session key."""
+        if not cls._initialized:
+            cls.initialize_from_config()
+
+        target_session_key = session_key or cls._session_key
+        if target_session_key:
+            parts = target_session_key.split(":")
+            if len(parts) >= 2:
+                agent_id = parts[1]
+                agent_match = cls._agent_tts_speakers.get(agent_id)
+                if agent_match:
+                    return agent_match
+
+        return cls._tts_speaker
 
     @classmethod
     def _base64url_encode(cls, raw: bytes) -> str:
@@ -450,7 +479,10 @@ class OpenClawManager:
         if not wait_response:
             return run_id
 
-        return await cls._wait_response(run_id)
+        try:
+            return await cls._wait_response(run_id)
+        finally:
+            cls._response_tts_speakers.pop(run_id, None)
 
     @classmethod
     async def send_and_play_reply(cls, text: str, wait_response: bool = False) -> str | None:
@@ -473,10 +505,17 @@ class OpenClawManager:
             asyncio.create_task(cls._wait_and_play_response(run_id))
             return run_id
 
-        response_text = await cls._wait_response(run_id)
-        if response_text:
-            await cls._play_response_with_tts(response_text)
-        return response_text
+        try:
+            response_text = await cls._wait_response(run_id)
+            if response_text:
+                tts_speaker = cls._response_tts_speakers.get(run_id)
+                await cls._play_response_with_tts(
+                    response_text,
+                    tts_speaker=tts_speaker,
+                )
+            return response_text
+        finally:
+            cls._response_tts_speakers.pop(run_id, None)
 
     # -- internal helpers --------------------------------------------------
 
@@ -506,6 +545,9 @@ class OpenClawManager:
             response_waiter = loop.create_future()
             cls._response_events[idem] = response_waiter
             cls._response_texts[idem] = ""
+            cls._response_tts_speakers[idem] = cls.get_tts_speaker_for_session_key(
+                cls._session_key
+            )
             logger.debug(f"[OpenClaw] Tracking idem={idem}")
 
             request_params = {
@@ -531,6 +573,7 @@ class OpenClawManager:
                     logger.error(f"[OpenClaw] Agent request rejected: req_id={req_id}, idem={idem}, error={cls.last_error}")
                     waiter = cls._response_events.pop(idem, None)
                     cls._response_texts.pop(idem, None)
+                    cls._response_tts_speakers.pop(idem, None)
                     if waiter and not waiter.done():
                         waiter.get_loop().call_soon_threadsafe(waiter.set_result, None)
                     return None
@@ -542,12 +585,16 @@ class OpenClawManager:
                 if final_run_id != idem and idem in cls._response_events:
                     cls._response_events[final_run_id] = cls._response_events.pop(idem)
                     cls._response_texts[final_run_id] = cls._response_texts.pop(idem, "")
+                    cls._response_tts_speakers[final_run_id] = cls._response_tts_speakers.pop(
+                        idem, None
+                    )
 
                 return final_run_id
             except asyncio.TimeoutError:
                 logger.warning(f"[OpenClaw] Agent ack timeout: req_id={req_id}, idem={idem}, timeout={cls._ack_timeout}s")
                 cls._response_events.pop(idem, None)
                 cls._response_texts.pop(idem, None)
+                cls._response_tts_speakers.pop(idem, None)
                 return None
             finally:
                 cls._pending.pop(req_id, None)
@@ -863,20 +910,25 @@ class OpenClawManager:
             response_text = await cls._wait_response(run_id)
             if response_text:
                 logger.debug(f"[OpenClaw] Playing response via TTS: {response_text[:100]}...")
-                await cls._play_response_with_tts(response_text)
+                tts_speaker = cls._response_tts_speakers.get(run_id)
+                await cls._play_response_with_tts(response_text, tts_speaker=tts_speaker)
             else:
                 logger.warning(f"[OpenClaw] No response text received for run {run_id}")
         except Exception as e:
             logger.error(f"[OpenClaw] Error waiting/playing response: {e}")
+        finally:
+            cls._response_tts_speakers.pop(run_id, None)
 
     @classmethod
-    async def _play_response_with_tts(cls, text: str):
+    async def _play_response_with_tts(cls, text: str, tts_speaker: str | None = None):
         """Synthesize text using Doubao TTS and play through speaker."""
         try:
             from core.ref import get_speaker
 
+            resolved_tts_speaker = tts_speaker or cls.get_tts_speaker_for_session_key()
+
             # Special value: use XiaoAI native TTS directly
-            if cls._tts_speaker == cls.XIAOAI_TTS_SPEAKER:
+            if resolved_tts_speaker == cls.XIAOAI_TTS_SPEAKER:
                 speaker = get_speaker()
                 if speaker:
                     await speaker.play(text=text, blocking=True)
@@ -896,7 +948,9 @@ class OpenClawManager:
                     await speaker.play(text=text, blocking=True)
                 return
 
-            speaker_id = cls._tts_speaker or tts_config.get("default_speaker", "zh_female_xiaohe_uranus_bigtts")
+            speaker_id = resolved_tts_speaker or tts_config.get(
+                "default_speaker", "zh_female_xiaohe_uranus_bigtts"
+            )
 
             tts = DoubaoTTS(
                 app_id=app_id,

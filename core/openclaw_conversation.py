@@ -320,7 +320,10 @@ class OpenClawConversationController:
     async def _play_tts(self, text: str):
         """Play text via Doubao TTS (blocks until playback finishes)."""
         try:
-            await OpenClawManager._play_response_with_tts(text)
+            await OpenClawManager._play_response_with_tts(
+                text,
+                tts_speaker=OpenClawManager.get_tts_speaker_for_session_key(),
+            )
         except Exception as exc:
             logger.error(
                 f"TTS playback error: {exc}",

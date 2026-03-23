@@ -195,6 +195,15 @@ APP_CONFIG = {
         "identity_path": "/app/openclaw/identity/device.json",  # 设备身份文件路径；容器部署时建议挂载持久化目录
         "tts_speed": 1.0,  # TTS 语速 (0.5-2.0)，仅豆包 TTS 生效，小爱原生 TTS 不支持调速
         "tts_speaker": "xiaoai",  # "xiaoai" = 小爱原生 TTS；填豆包音色 ID 则用豆包 TTS；不设置则使用 tts.doubao.default_speaker
+        # 可按 agentId 单独覆盖音色，优先级高于 tts_speaker
+        # agentId 来自 session_key，格式为：agent:<agentId>:<rest>
+        # 示例：
+        # "agent_tts_speakers": {
+        #     "assistant": "zh_female_vv_uranus_bigtts",
+        #     "xiaomei": "zh_female_shuangkuaisisi_moon_bigtts",
+        #     "butler": "xiaoai",
+        # },
+        "agent_tts_speakers": {},
         "response_timeout": 120,  # 等待 OpenClaw agent 响应的超时时间（秒）
         "exit_keywords": ["退出", "停止", "再见"],  # 退出连续对话的关键词
         # rule_prompt: 用于「自动播放」和「连续对话」场景

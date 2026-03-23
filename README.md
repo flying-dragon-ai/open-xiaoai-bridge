@@ -518,6 +518,24 @@ async def after_wakeup(speaker, source=None, session_key=None):
 | `"xiaoai"` | 小爱原生 TTS | 零配置即可使用，音色由设备决定                                       |
 | 豆包音色 ID    | 豆包语音合成   | 需配置 `tts.doubao` 的 `app_id` 和 `access_key`，详见 [豆包 TTS 章节](#-豆包-tts) |
 
+如果希望不同 Agent 使用不同音色，可以配置 `openclaw.agent_tts_speakers`。它会根据当前 `session_key` 中的 `agentId` 选择对应音色；未命中时回退到 `openclaw.tts_speaker`。
+
+```python
+"openclaw": {
+    # 默认音色：未命中 agent_tts_speakers 时使用
+    "tts_speaker": "xiaoai",
+    # 按 agentId 覆盖音色
+    "agent_tts_speakers": {
+        "main": "xiaoai",
+        "assistant": "zh_female_vv_uranus_bigtts",
+        "xiaomei": "zh_female_shuangkuaisisi_moon_bigtts",
+        "butler": "zh_male_raphael_bigtts",
+    },
+}
+```
+
+例如当前 `session_key` 是 `agent:assistant:open-xiaoai-bridge`，则会使用 `assistant` 对应的音色。
+
 ### 🧩 Skills
 
 `skills/xiaoai-tts/` — Agent 通过 HTTP API 控制小爱播放语音，支持小爱内置 TTS 和豆包 TTS。
