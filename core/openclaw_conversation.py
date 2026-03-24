@@ -224,6 +224,7 @@ class OpenClawConversationController:
             """Silence detected — stop recording and resolve."""
             nonlocal is_recording
             is_recording = False
+            logger.debug("VAD detected silence, stop recording", module="OpenClaw Conv")
             if self._vad_future and not self._vad_future.done():
                 self._loop.call_soon_threadsafe(
                     self._vad_future.set_result, b"".join(recording_frames)
@@ -295,7 +296,7 @@ class OpenClawConversationController:
         EventManager.on_speech = _on_speech
         try:
             vad.resume("silence")
-            await asyncio.wait_for(future, timeout=30)
+            await asyncio.wait_for(future, timeout=1)
         except asyncio.TimeoutError:
             vad.pause()
         finally:
