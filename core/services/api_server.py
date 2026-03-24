@@ -7,6 +7,8 @@ import asyncio
 import json
 import os
 import tempfile
+from collections.abc import Coroutine
+from typing import Any
 
 import open_xiaoai_server
 from aiohttp import web
@@ -40,6 +42,23 @@ class APIServer:
         # TTS endpoints
         self.app.router.add_post("/api/tts/doubao", self.handle_tts_doubao)
         self.app.router.add_get("/api/tts/doubao_voices", self.handle_tts_voices)
+
+    def _create_background_task(
+        self,
+        coro: Coroutine[Any, Any, Any],
+        name: str,
+    ) -> asyncio.Task:
+        """Create a background task and log any unhandled exception."""
+        task = asyncio.create_task(coro)
+
+        def _log_task_result(done_task: asyncio.Task):
+            try:
+                done_task.result()
+            except Exception as exc:
+                logger.error(f"[APIServer] Background task failed ({name}): {exc}")
+
+        task.add_done_callback(_log_task_result)
+        return task
 
     async def start(self):
         """Start the HTTP server"""
@@ -451,46 +470,48 @@ class APIServer:
             use_stream = tts_config.get("stream", False)
             if use_stream:
                 async def play_tts_stream():
-                    try:
-                        await open_xiaoai_server.tts_stream_play(
-                            text,
-                            app_id=app_id,
-                            access_key=access_key,
-                            resource_id=tts.resource_id,
-                            speaker=speaker_id,
-                            speed=speed,
-                            format=resolved_format,
-                            sample_rate=24000,
-                            emotion=emotion,
-                            context_texts=context_texts,
-                        )
-                    except Exception as e:
-                        logger.error(f"[APIServer] TTS stream error: {e}")
-                        raise
+                    play_fn = (
+                        open_xiaoai_server.tts_stream_play
+                        if blocking
+                        else open_xiaoai_server.tts_stream_play_background
+                    )
+                    await play_fn(
+                        text,
+                        app_id=app_id,
+                        access_key=access_key,
+                        resource_id=tts.resource_id,
+                        speaker=speaker_id,
+                        speed=speed,
+                        format=resolved_format,
+                        sample_rate=24000,
+                        emotion=emotion,
+                        context_texts=context_texts,
+                    )
 
                 if blocking:
                     await play_tts_stream()
                 else:
-                    asyncio.create_task(play_tts_stream())
+                    await play_tts_stream()
             else:
                 async def play_tts_audio():
-                    try:
-                        await open_xiaoai_server.tts_play(
-                            text,
-                            app_id=app_id,
-                            access_key=access_key,
-                            resource_id=tts.resource_id,
-                            speaker=speaker_id,
-                            speed=speed,
-                            format=resolved_format,
-                            sample_rate=24000,
-                            emotion=emotion,
-                            context_texts=context_texts,
-                        )
-                        logger.debug("[APIServer] Finished playing TTS audio")
-                    except Exception as e:
-                        logger.error(f"[APIServer] Error playing TTS audio: {e}")
-                        raise
+                    play_fn = (
+                        open_xiaoai_server.tts_play
+                        if blocking
+                        else open_xiaoai_server.tts_play_background
+                    )
+                    await play_fn(
+                        text,
+                        app_id=app_id,
+                        access_key=access_key,
+                        resource_id=tts.resource_id,
+                        speaker=speaker_id,
+                        speed=speed,
+                        format=resolved_format,
+                        sample_rate=24000,
+                        emotion=emotion,
+                        context_texts=context_texts,
+                    )
+                    logger.debug("[APIServer] Finished playing TTS audio")
 
                 if blocking:
                     try:
@@ -501,13 +522,25 @@ class APIServer:
                             status=500
                         )
                 else:
-                    asyncio.create_task(play_tts_audio())
+                    await play_tts_audio()
 
-            return web.json_response({
-                "success": True,
-                "message": f"TTS played: {text[:50]}..." if len(text) > 50 else f"TTS played: {text}",
-                "speaker_id": speaker_id,
-            })
+            if blocking:
+                return web.json_response({
+                    "success": True,
+                    "message": f"TTS played: {text[:50]}..." if len(text) > 50 else f"TTS played: {text}",
+                    "speaker_id": speaker_id,
+                })
+
+            return web.json_response(
+                {
+                    "success": True,
+                    "message": "TTS request accepted for background playback",
+                    "speaker_id": speaker_id,
+                    "accepted": True,
+                    "blocking": False,
+                },
+                status=202,
+            )
 
         except json.JSONDecodeError:
             return web.json_response(

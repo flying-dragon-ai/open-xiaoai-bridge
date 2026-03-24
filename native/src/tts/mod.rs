@@ -11,6 +11,7 @@ use std::collections::VecDeque;
 use std::path::Path;
 use std::time::Instant;
 use tokio::sync::mpsc;
+use tokio::sync::oneshot;
 
 const STREAM_BUFFER_THRESHOLD: usize = 8192;
 const PLAY_CHUNK_SIZE: usize = 1024 * 1024; // 1MB chunks for WebSocket
@@ -280,6 +281,170 @@ pub fn tts_stream_play(
     })
 }
 
+/// Stream TTS in background, but wait until the remote request is accepted.
+#[pyfunction]
+#[pyo3(signature = (text, app_id, access_key, resource_id, speaker, speed=1.0, format="mp3".to_string(), sample_rate=24000, emotion=None, context_texts=None))]
+pub fn tts_stream_play_background(
+    py: Python<'_>,
+    text: String,
+    app_id: String,
+    access_key: String,
+    resource_id: String,
+    speaker: String,
+    speed: f32,
+    format: String,
+    sample_rate: u32,
+    emotion: Option<String>,
+    context_texts: Option<Vec<String>>,
+) -> PyResult<Bound<'_, PyAny>> {
+    pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        let (ready_tx, ready_rx) = oneshot::channel::<Result<(), String>>();
+
+        tokio::spawn(async move {
+            let client = DoubaoStreamClient::new(app_id, access_key, resource_id, speaker);
+            let (tx, mut rx) = mpsc::channel::<Vec<u8>>(16);
+            let started_at = Instant::now();
+            let is_pcm_passthrough = format == "pcm";
+
+            let fetch_handle = tokio::spawn({
+                let text = text.clone();
+                let format = format.clone();
+                async move {
+                    client
+                        .stream_audio_with_ready(
+                            &text,
+                            &format,
+                            sample_rate,
+                            speed,
+                            context_texts,
+                            emotion,
+                            tx,
+                            Some(ready_tx),
+                        )
+                        .await
+                }
+            });
+
+            let mut decoder = StreamingDecoder::new(&format, sample_rate);
+            let mut playback_buffer = PcmPlaybackBuffer::new(sample_rate);
+            let mut accumulated_size: usize = 0;
+            let mut first_audio_chunk_ms: Option<u128> = None;
+            let mut playback_started_ms: Option<u128> = None;
+            let mut total_encoded_bytes: usize = 0;
+            let mut total_pcm_bytes: usize = 0;
+
+            while let Some(chunk) = rx.recv().await {
+                if first_audio_chunk_ms.is_none() {
+                    first_audio_chunk_ms = Some(started_at.elapsed().as_millis());
+                }
+                total_encoded_bytes += chunk.len();
+
+                if is_pcm_passthrough {
+                    playback_buffer.push(&chunk);
+                    total_pcm_bytes += chunk.len();
+                    for pcm_chunk in playback_buffer.drain_ready_chunks() {
+                        if playback_started_ms.is_none() {
+                            playback_started_ms = Some(started_at.elapsed().as_millis());
+                        }
+                        send_pcm(pcm_chunk).await;
+                    }
+                    continue;
+                }
+
+                accumulated_size += chunk.len();
+                decoder.feed(&chunk);
+
+                if accumulated_size >= STREAM_BUFFER_THRESHOLD {
+                    match decoder.decode_all() {
+                        Ok(pcm) if !pcm.is_empty() => {
+                            total_pcm_bytes += pcm.len();
+                            playback_buffer.push(&pcm);
+                            for pcm_chunk in playback_buffer.drain_ready_chunks() {
+                                if playback_started_ms.is_none() {
+                                    playback_started_ms = Some(started_at.elapsed().as_millis());
+                                }
+                                send_pcm(pcm_chunk).await;
+                            }
+                        }
+                        Ok(_) => {}
+                        Err(e) => {
+                            crate::pylog!("[TTS] Decode error (continuing): {}", e);
+                        }
+                    }
+                    accumulated_size = 0;
+                }
+            }
+
+            match decoder.decode_all() {
+                Ok(pcm) if !pcm.is_empty() => {
+                    if !is_pcm_passthrough {
+                        playback_buffer.push(&pcm);
+                    }
+                }
+                Ok(_) => {}
+                Err(e) => {
+                    crate::pylog!("[TTS] Final decode error: {}", e);
+                }
+            }
+
+            for pcm_chunk in playback_buffer.drain_remaining() {
+                if playback_started_ms.is_none() {
+                    playback_started_ms = Some(started_at.elapsed().as_millis());
+                }
+                send_pcm(pcm_chunk).await;
+            }
+
+            let fetch_failed = match fetch_handle.await {
+                Ok(Err(e)) => {
+                    crate::pylog!("[TTS] Stream fetch error: {}", e);
+                    Some(e.to_string())
+                }
+                Err(e) => {
+                    crate::pylog!("[TTS] Stream fetch task panicked: {}", e);
+                    Some(e.to_string())
+                }
+                _ => None,
+            };
+
+            let total_ms = started_at.elapsed().as_millis();
+            let playback_duration_ms = total_pcm_bytes as u128 * 1000 / (sample_rate as u128 * 2);
+            let remaining_ms = playback_duration_ms.saturating_sub(total_ms);
+
+            crate::pylog!(
+                "[TTS] Stream summary: format={}, first_chunk={} ms, playback_start={} ms, total={} ms, encoded={} bytes, pcm={} bytes, remaining={} ms",
+                format,
+                first_audio_chunk_ms.unwrap_or(0),
+                playback_started_ms.unwrap_or(0),
+                total_ms,
+                total_encoded_bytes,
+                total_pcm_bytes,
+                remaining_ms,
+            );
+
+            if let Some(err_msg) = fetch_failed {
+                if total_pcm_bytes == 0 {
+                    crate::pylog!(
+                        "[TTS] Background stream ended with no audio: {}",
+                        err_msg
+                    );
+                }
+            }
+
+            if remaining_ms > 0 {
+                tokio::time::sleep(tokio::time::Duration::from_millis(remaining_ms as u64)).await;
+            }
+        });
+
+        match ready_rx.await {
+            Ok(Ok(())) => Ok(()),
+            Ok(Err(err)) => Err(pyo3::exceptions::PyRuntimeError::new_err(err)),
+            Err(_) => Err(pyo3::exceptions::PyRuntimeError::new_err(
+                "background stream task ended before request was accepted",
+            )),
+        }
+    })
+}
+
 /// Non-streaming TTS: fetch all audio, decode to PCM, then play.
 #[pyfunction]
 #[pyo3(signature = (text, app_id, access_key, resource_id, speaker, speed=1.0, format="mp3".to_string(), sample_rate=24000, emotion=None, context_texts=None))]
@@ -330,6 +495,84 @@ pub fn tts_play(
             remaining_ms,
         );
         Ok(())
+    })
+}
+
+/// Fetch TTS in background, but wait until the remote request succeeds.
+#[pyfunction]
+#[pyo3(signature = (text, app_id, access_key, resource_id, speaker, speed=1.0, format="mp3".to_string(), sample_rate=24000, emotion=None, context_texts=None))]
+pub fn tts_play_background(
+    py: Python<'_>,
+    text: String,
+    app_id: String,
+    access_key: String,
+    resource_id: String,
+    speaker: String,
+    speed: f32,
+    format: String,
+    sample_rate: u32,
+    emotion: Option<String>,
+    context_texts: Option<Vec<String>>,
+) -> PyResult<Bound<'_, PyAny>> {
+    pyo3_async_runtimes::tokio::future_into_py(py, async move {
+        let (ready_tx, ready_rx) = oneshot::channel::<Result<(), String>>();
+
+        tokio::spawn(async move {
+            let started_at = Instant::now();
+            let client = DoubaoStreamClient::new(app_id, access_key, resource_id, speaker);
+
+            let encoded_audio = match client
+                .fetch_audio(&text, &format, sample_rate, speed, context_texts, emotion)
+                .await
+            {
+                Ok(audio) => {
+                    let _ = ready_tx.send(Ok(()));
+                    audio
+                }
+                Err(err) => {
+                    let _ = ready_tx.send(Err(err.clone()));
+                    return;
+                }
+            };
+            let encoded_audio_len = encoded_audio.len();
+
+            let fetch_completed_ms = started_at.elapsed().as_millis();
+
+            let pcm = match decode_audio_to_pcm(&encoded_audio, &format, sample_rate) {
+                Ok(pcm) => pcm,
+                Err(err) => {
+                    crate::pylog!("[TTS] Background decode error: {}", err);
+                    return;
+                }
+            };
+            let pcm_len = pcm.len();
+            let pcm_ready_ms = started_at.elapsed().as_millis();
+
+            play_pcm_with_buffer(pcm, sample_rate).await;
+
+            let total_ms = started_at.elapsed().as_millis();
+            let playback_duration_ms = pcm_len as u128 * 1000 / (sample_rate as u128 * 2);
+            let remaining_ms = playback_duration_ms.saturating_sub(total_ms);
+
+            crate::pylog!(
+                "[TTS] Non-stream summary: format={}, fetch={} ms, pcm_ready={} ms, total={} ms, encoded={} bytes, pcm={} bytes, remaining={} ms",
+                format,
+                fetch_completed_ms,
+                pcm_ready_ms,
+                total_ms,
+                encoded_audio_len,
+                pcm_len,
+                remaining_ms,
+            );
+        });
+
+        match ready_rx.await {
+            Ok(Ok(())) => Ok(()),
+            Ok(Err(err)) => Err(pyo3::exceptions::PyRuntimeError::new_err(err)),
+            Err(_) => Err(pyo3::exceptions::PyRuntimeError::new_err(
+                "background playback task ended before request was accepted",
+            )),
+        }
     })
 }
 
@@ -533,7 +776,9 @@ pub fn decode_audio<'py>(
 
 pub fn init_module(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(tts_stream_play, m)?)?;
+    m.add_function(wrap_pyfunction!(tts_stream_play_background, m)?)?;
     m.add_function(wrap_pyfunction!(tts_play, m)?)?;
+    m.add_function(wrap_pyfunction!(tts_play_background, m)?)?;
     m.add_function(wrap_pyfunction!(tts_stream_collect, m)?)?;
     m.add_function(wrap_pyfunction!(decode_audio, m)?)?;
     m.add_function(wrap_pyfunction!(play_audio_file, m)?)?;
