@@ -649,7 +649,7 @@ PS: 最好固定 IP 地址。
     ```python
     APP_CONFIG = {
         "asr": {
-            "model": "paraformer",  # "sense_voice" 或 "paraformer"
+            "model": "sense_voice",  # "sense_voice"（默认）或 "paraformer"
         },
     }
     ```
@@ -657,7 +657,7 @@ PS: 最好固定 IP 地址。
     | 模型 | 说明 | 特点 |
     |------|------|------|
     | `sense_voice` | [SenseVoice-Small](https://github.com/FunAudioLLM/SenseVoice) | 多任务语音理解模型，支持中/英/日/韩/粤五语种自动识别，附带语言检测、ITN 和情感识别，推理极快 |
-    | `paraformer` | [Paraformer-Trilingual](https://github.com/modelscope/FunASR)（默认） | 专注语音转写的工业级非自回归模型，支持中文/英文/粤语，中文识别精度高 |
+    | `paraformer` | [Paraformer-Trilingual](https://github.com/modelscope/FunASR) | 专注语音转写的工业级非自回归模型，支持中文/英文/粤语，中文识别精度高 |
 
     将对应模型目录放到 `core/models/`（Docker 部署放 `./models/`）下即可，不配置默认使用 `sense_voice`。
 

@@ -41,7 +41,7 @@ class _SherpaASR:
 
     def _get_backend(self) -> str:
         cfg = ConfigManager.instance()
-        backend = cfg.get_app_config("asr.model", "paraformer")
+        backend = cfg.get_app_config("asr.model", "sense_voice")
         if backend not in _BACKENDS:
             raise ValueError(
                 f"Unknown ASR model '{backend}'. "
