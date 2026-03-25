@@ -2,6 +2,29 @@
 
 All notable changes to this project will be documented in this file.
 
+## v1.0.4 - 2026-03-26
+
+### 重点更新
+
+- 新增可配置的 ASR 后端，支持通过配置切换不同语音识别模型。
+- 优化设备端音频播放链路，通过延迟启动播放降低 `aplay` underrun 问题。
+- 优化长时间运行场景下的内部状态管理，减少潜在内存泄漏风险。
+
+### 修复与优化
+
+- 修复 `after_wakeup` 回调中未正确透传 `source` 参数的问题，改善小智/OpenClaw 会话退出后的收尾逻辑。
+- 调整 XiaoZhi、XiaoAI、OpenClaw 以及原生音频相关实现，优化稳定性与部分边界行为。
+- 补充和整理 Docker / README 相关说明，提升部署与使用时的可读性。
+
+### 文档更新
+
+- 补充并整理项目文档说明，优化 README 的来源说明、致谢与相关文案表达。
+- 更新 LICENSE 中的版权声明，保留上游作者信息并补充当前项目维护者信息。
+
+### Full Changelog
+
+- https://github.com/coderzc/open-xiaoai-bridge/compare/v1.0.3...v1.0.4
+
 ## v1.0.3 - 2026-03-25
 
 ### 重点更新
