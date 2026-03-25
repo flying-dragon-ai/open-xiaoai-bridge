@@ -163,6 +163,10 @@ APP_CONFIG = {
         # 最小静默时长（ms）
         "min_silence_duration": 500,
     },
+    "asr": {
+        # 支持 "sense_voice" 或 "paraformer"（默认）
+        "model": "paraformer",
+    },
     "xiaozhi": {
         "OTA_URL": "http://127.0.0.1:8003/xiaozhi/ota/",
         "WEBSOCKET_URL": "ws://127.0.0.1:8000/xiaozhi/v1/",

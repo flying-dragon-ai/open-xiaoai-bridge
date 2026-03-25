@@ -642,11 +642,30 @@ PS: 最好固定 IP 地址。
 
     启用小智 AI 或 OpenClaw 连续对话功能需要下载 VAD + KWS + ASR 模型文件，详见[快速开始 - Docker Compose](#-docker-compose推荐) 或 [本地编译](#-本地编译) 章节。
 
-2. **如何打断 AI 的回答？**
+2. **如何切换 ASR 语音识别模型？**
+
+    支持两种离线语音识别模型，在 `config.py` 中配置：
+
+    ```python
+    APP_CONFIG = {
+        "asr": {
+            "model": "paraformer",  # "sense_voice" 或 "paraformer"
+        },
+    }
+    ```
+
+    | 模型 | 说明 | 特点 |
+    |------|------|------|
+    | `sense_voice` | [SenseVoice-Small](https://github.com/FunAudioLLM/SenseVoice) | 多任务语音理解模型，支持中/英/日/韩/粤五语种自动识别，附带语言检测、ITN 和情感识别，推理极快 |
+    | `paraformer` | [Paraformer-Trilingual](https://github.com/modelscope/FunASR)（默认） | 专注语音转写的工业级非自回归模型，支持中文/英文/粤语，中文识别精度高 |
+
+    将对应模型目录放到 `core/models/`（Docker 部署放 `./models/`）下即可，不配置默认使用 `sense_voice`。
+
+3. **如何打断 AI 的回答？**
 
     直接喊"小爱同学"即可打断小智或 OpenClaw 的回答。
 
-3. **话没说完 AI 就开始回答？**
+4. **话没说完 AI 就开始回答？**
 
     调大 `min_silence_duration`：
 
@@ -658,14 +677,14 @@ PS: 最好固定 IP 地址。
     }
     ```
 
-4. **唤醒词没反应？**
+5. **唤醒词没反应？**
 
     - 调低 `vad.threshold`（越小越灵敏，如 `0.05`）
     - 启动后需等约 30s 加载模型
     - 英文唤醒词用空格分开（如 `"open ai"`）
     - 换更易识别的唤醒词
 
-5. **如何播放服务端本地音频文件？**
+6. **如何播放服务端本地音频文件？**
 
     可以直接调用：
 
