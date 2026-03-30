@@ -706,9 +706,11 @@ class OpenClawManager:
                             logger.debug("[OpenClaw] Tick event received")
                         # Handle agent response events for TTS playback
                         elif event_name in ("run.completed", "run.output", "run.text", "agent"):
-                            logger.debug(f"[OpenClaw] Agent event received: {event_name}")
-                            # Do not block receiver loop on event handling; keep processing res frames promptly.
-                            asyncio.create_task(cls._handle_agent_event(data))
+                            run_id = (data.get("payload") or {}).get("runId")
+                            if run_id and run_id in cls._response_events:
+                                logger.debug(f"[OpenClaw] Agent event received: {event_name}, runId={run_id}")
+                                # Do not block receiver loop on event handling; keep processing res frames promptly.
+                                asyncio.create_task(cls._handle_agent_event(data))
                         else:
                             logger.debug(f"[OpenClaw] Other event received: {event_name}, data: {data}")
                         # Any event counts as server activity
