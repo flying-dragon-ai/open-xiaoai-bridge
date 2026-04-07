@@ -168,8 +168,12 @@ APP_CONFIG = {
         "gain": 1.0,
     },
     "asr": {
-        # 支持 "sense_voice"（默认）或 "paraformer"
-        "model": "sense_voice",
+        # 支持 "sense_voice"（默认）、"paraformer" 或 "fire_red_asr"
+        "model": "fire_red_asr",
+        # 是否优先使用 INT8 量化模型
+        "int8": True,
+        # 可选：显式指定 core/models/ 下的模型目录名
+        "model_dir": "sherpa-onnx-fire-red-asr-large-zh_en-2025-02-16",
     },
     "xiaozhi": {
         "OTA_URL": "http://127.0.0.1:8003/xiaozhi/ota/",

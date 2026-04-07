@@ -661,7 +661,9 @@ APP_CONFIG = {
     ```python
     APP_CONFIG = {
         "asr": {
-            "model": "sense_voice",  # "sense_voice"（默认）或 "paraformer"
+            "model": "sense_voice",  # "sense_voice"（默认）/ "paraformer" / "fire_red_asr"
+            "int8": True,               # 优先加载 INT8 量化模型
+            # "model_dir": "sherpa-onnx-fire-red-asr-xxx",  # 可选：显式指定模型目录
         },
     }
     ```
@@ -670,6 +672,7 @@ APP_CONFIG = {
     |------|------|------|
     | `sense_voice` | [SenseVoice-Small](https://github.com/FunAudioLLM/SenseVoice) | 多任务语音理解模型，支持中/英/日/韩/粤五语种自动识别，附带语言检测、ITN 和情感识别，推理极快 |
     | `paraformer` | [Paraformer-Trilingual](https://github.com/modelscope/FunASR) | 专注语音转写的工业级非自回归模型，支持中文/英文/粤语，中文识别精度高 |
+    | `fire_red_asr` | [FireRedASR](https://k2-fsa.github.io/sherpa/onnx/fire_red_asr/index.html) | FireRedASR AED 离线识别模型，使用 sherpa-onnx 的 encoder/decoder 双模型接口，支持 INT8 |
 
     将对应模型目录放到 `core/models/`（Docker 部署放 `./models/`）下即可，不配置默认使用 `sense_voice`。
 
